@@ -1,0 +1,364 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
+import { 
+  insertDepartmentSchema,
+  insertPositionSchema,
+  insertEmployeeSchema,
+  insertLeaveRequestSchema,
+  insertPayrollRecordSchema,
+  insertPerformanceReviewSchema,
+  insertDocumentSchema 
+} from "@shared/schema";
+import { z } from "zod";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Get employee data for additional context
+      const employee = await storage.getEmployeeByUserId(userId);
+      
+      res.json({ ...user, employee });
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Dashboard routes
+  app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
+    try {
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Department routes
+  app.get('/api/departments', isAuthenticated, async (req, res) => {
+    try {
+      const departments = await storage.getDepartments();
+      res.json(departments);
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      res.status(500).json({ message: "Failed to fetch departments" });
+    }
+  });
+
+  app.post('/api/departments', isAuthenticated, async (req, res) => {
+    try {
+      const departmentData = insertDepartmentSchema.parse(req.body);
+      const department = await storage.createDepartment(departmentData);
+      res.status(201).json(department);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid department data", errors: error.errors });
+      }
+      console.error("Error creating department:", error);
+      res.status(500).json({ message: "Failed to create department" });
+    }
+  });
+
+  app.put('/api/departments/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const departmentData = insertDepartmentSchema.partial().parse(req.body);
+      const department = await storage.updateDepartment(id, departmentData);
+      res.json(department);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid department data", errors: error.errors });
+      }
+      console.error("Error updating department:", error);
+      res.status(500).json({ message: "Failed to update department" });
+    }
+  });
+
+  app.delete('/api/departments/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteDepartment(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting department:", error);
+      res.status(500).json({ message: "Failed to delete department" });
+    }
+  });
+
+  // Position routes
+  app.get('/api/positions', isAuthenticated, async (req, res) => {
+    try {
+      const { departmentId } = req.query;
+      const positions = departmentId 
+        ? await storage.getPositionsByDepartment(departmentId as string)
+        : await storage.getPositions();
+      res.json(positions);
+    } catch (error) {
+      console.error("Error fetching positions:", error);
+      res.status(500).json({ message: "Failed to fetch positions" });
+    }
+  });
+
+  app.post('/api/positions', isAuthenticated, async (req, res) => {
+    try {
+      const positionData = insertPositionSchema.parse(req.body);
+      const position = await storage.createPosition(positionData);
+      res.status(201).json(position);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid position data", errors: error.errors });
+      }
+      console.error("Error creating position:", error);
+      res.status(500).json({ message: "Failed to create position" });
+    }
+  });
+
+  // Employee routes
+  app.get('/api/employees', isAuthenticated, async (req, res) => {
+    try {
+      const { departmentId, status, search } = req.query;
+      const filters = {
+        departmentId: departmentId as string,
+        status: status as string,
+        search: search as string,
+      };
+      const employees = await storage.getEmployees(filters);
+      res.json(employees);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      res.status(500).json({ message: "Failed to fetch employees" });
+    }
+  });
+
+  app.get('/api/employees/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const employee = await storage.getEmployee(id);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      res.json(employee);
+    } catch (error) {
+      console.error("Error fetching employee:", error);
+      res.status(500).json({ message: "Failed to fetch employee" });
+    }
+  });
+
+  app.post('/api/employees', isAuthenticated, async (req, res) => {
+    try {
+      const employeeData = insertEmployeeSchema.parse(req.body);
+      const employee = await storage.createEmployee(employeeData);
+      res.status(201).json(employee);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid employee data", errors: error.errors });
+      }
+      console.error("Error creating employee:", error);
+      res.status(500).json({ message: "Failed to create employee" });
+    }
+  });
+
+  app.put('/api/employees/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const employeeData = insertEmployeeSchema.partial().parse(req.body);
+      const employee = await storage.updateEmployee(id, employeeData);
+      res.json(employee);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid employee data", errors: error.errors });
+      }
+      console.error("Error updating employee:", error);
+      res.status(500).json({ message: "Failed to update employee" });
+    }
+  });
+
+  app.delete('/api/employees/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteEmployee(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      res.status(500).json({ message: "Failed to delete employee" });
+    }
+  });
+
+  // Leave routes
+  app.get('/api/leave/types', isAuthenticated, async (req, res) => {
+    try {
+      const leaveTypes = await storage.getLeaveTypes();
+      res.json(leaveTypes);
+    } catch (error) {
+      console.error("Error fetching leave types:", error);
+      res.status(500).json({ message: "Failed to fetch leave types" });
+    }
+  });
+
+  app.get('/api/leave/requests', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, status, startDate, endDate } = req.query;
+      const filters = {
+        employeeId: employeeId as string,
+        status: status as string,
+        startDate: startDate as string,
+        endDate: endDate as string,
+      };
+      const requests = await storage.getLeaveRequests(filters);
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching leave requests:", error);
+      res.status(500).json({ message: "Failed to fetch leave requests" });
+    }
+  });
+
+  app.post('/api/leave/requests', isAuthenticated, async (req, res) => {
+    try {
+      const leaveRequestData = insertLeaveRequestSchema.parse(req.body);
+      const leaveRequest = await storage.createLeaveRequest(leaveRequestData);
+      res.status(201).json(leaveRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid leave request data", errors: error.errors });
+      }
+      console.error("Error creating leave request:", error);
+      res.status(500).json({ message: "Failed to create leave request" });
+    }
+  });
+
+  app.put('/api/leave/requests/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const leaveRequestData = insertLeaveRequestSchema.partial().parse(req.body);
+      const leaveRequest = await storage.updateLeaveRequest(id, leaveRequestData);
+      res.json(leaveRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid leave request data", errors: error.errors });
+      }
+      console.error("Error updating leave request:", error);
+      res.status(500).json({ message: "Failed to update leave request" });
+    }
+  });
+
+  app.get('/api/leave/balances/:employeeId', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId } = req.params;
+      const { year } = req.query;
+      const balances = await storage.getLeaveBalances(employeeId, year ? parseInt(year as string) : undefined);
+      res.json(balances);
+    } catch (error) {
+      console.error("Error fetching leave balances:", error);
+      res.status(500).json({ message: "Failed to fetch leave balances" });
+    }
+  });
+
+  // Payroll routes
+  app.get('/api/payroll', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, startDate, endDate, status } = req.query;
+      const filters = {
+        employeeId: employeeId as string,
+        startDate: startDate as string,
+        endDate: endDate as string,
+        status: status as string,
+      };
+      const payrollRecords = await storage.getPayrollRecords(filters);
+      res.json(payrollRecords);
+    } catch (error) {
+      console.error("Error fetching payroll records:", error);
+      res.status(500).json({ message: "Failed to fetch payroll records" });
+    }
+  });
+
+  app.post('/api/payroll', isAuthenticated, async (req, res) => {
+    try {
+      const payrollData = insertPayrollRecordSchema.parse(req.body);
+      const payrollRecord = await storage.createPayrollRecord(payrollData);
+      res.status(201).json(payrollRecord);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid payroll data", errors: error.errors });
+      }
+      console.error("Error creating payroll record:", error);
+      res.status(500).json({ message: "Failed to create payroll record" });
+    }
+  });
+
+  // Performance review routes
+  app.get('/api/performance/reviews', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, reviewerId, status } = req.query;
+      const filters = {
+        employeeId: employeeId as string,
+        reviewerId: reviewerId as string,
+        status: status as string,
+      };
+      const reviews = await storage.getPerformanceReviews(filters);
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching performance reviews:", error);
+      res.status(500).json({ message: "Failed to fetch performance reviews" });
+    }
+  });
+
+  app.post('/api/performance/reviews', isAuthenticated, async (req, res) => {
+    try {
+      const reviewData = insertPerformanceReviewSchema.parse(req.body);
+      const review = await storage.createPerformanceReview(reviewData);
+      res.status(201).json(review);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid performance review data", errors: error.errors });
+      }
+      console.error("Error creating performance review:", error);
+      res.status(500).json({ message: "Failed to create performance review" });
+    }
+  });
+
+  // Document routes
+  app.get('/api/documents', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, category } = req.query;
+      const filters = {
+        employeeId: employeeId as string,
+        category: category as string,
+      };
+      const documents = await storage.getDocuments(filters);
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+
+  app.post('/api/documents', isAuthenticated, async (req, res) => {
+    try {
+      const documentData = insertDocumentSchema.parse(req.body);
+      const document = await storage.createDocument(documentData);
+      res.status(201).json(document);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid document data", errors: error.errors });
+      }
+      console.error("Error creating document:", error);
+      res.status(500).json({ message: "Failed to create document" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
