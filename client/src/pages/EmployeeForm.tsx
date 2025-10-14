@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,16 +25,16 @@ export default function EmployeeForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: employee, isLoading: employeeLoading } = useQuery({
+  const { data: employee, isLoading: employeeLoading } = useQuery<Employee>({
     queryKey: ['/api/employees', employeeId],
     enabled: isEdit && !!employeeId,
   });
 
-  const { data: departments } = useQuery({
+  const { data: departments } = useQuery<Department[]>({
     queryKey: ['/api/departments'],
   });
 
-  const { data: positions } = useQuery({
+  const { data: positions } = useQuery<Position[]>({
     queryKey: ['/api/positions'],
   });
 
@@ -60,7 +60,7 @@ export default function EmployeeForm() {
   });
 
   // Update form when employee data loads
-  useState(() => {
+  useEffect(() => {
     if (employee && isEdit) {
       form.reset({
         employeeId: employee.employeeId || "",
@@ -80,7 +80,7 @@ export default function EmployeeForm() {
         emergencyContactPhone: employee.emergencyContactPhone || "",
       });
     }
-  });
+  }, [employee, isEdit, form]);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
