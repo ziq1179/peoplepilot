@@ -1,15 +1,27 @@
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, Menu, Search, Users } from "lucide-react";
+import { Bell, Menu, Search, Users, LogOut } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
+
+  const handleLogout = () => {
+    logoutMutation.mutate();
+  };
 
   const getUserInitials = () => {
     if (!user) return "U";
@@ -65,23 +77,35 @@ export function Header({ onMenuClick }: HeaderProps) {
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full"></span>
           </Button>
           
-          <div className="flex items-center space-x-3">
-            <div className="hidden sm:block text-right">
-              <p className="text-sm font-medium text-foreground" data-testid="text-username">
-                {user ? `${user.firstName} ${user.lastName}` : 'Loading...'}
-              </p>
-              <p className="text-xs text-muted-foreground" data-testid="text-userrole">
-                {user?.role === 'admin' ? 'Administrator' : 
-                 user?.role === 'hr' ? 'HR Manager' :
-                 user?.role === 'manager' ? 'Manager' : 'Employee'}
-              </p>
-            </div>
-            
-            <Avatar className="w-10 h-10" data-testid="img-avatar">
-              <AvatarImage src={user?.profileImageUrl} alt="User avatar" />
-              <AvatarFallback>{getUserInitials()}</AvatarFallback>
-            </Avatar>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center space-x-3 cursor-pointer">
+                <div className="hidden sm:block text-right">
+                  <p className="text-sm font-medium text-foreground" data-testid="text-username">
+                    {user ? `${user.firstName || user.username} ${user.lastName || ''}` : 'Loading...'}
+                  </p>
+                  <p className="text-xs text-muted-foreground" data-testid="text-userrole">
+                    {user?.role === 'admin' ? 'Administrator' : 
+                     user?.role === 'hr' ? 'HR Manager' :
+                     user?.role === 'manager' ? 'Manager' : 'Employee'}
+                  </p>
+                </div>
+                
+                <Avatar className="w-10 h-10" data-testid="img-avatar">
+                  <AvatarImage src={user?.profileImageUrl || undefined} alt="User avatar" />
+                  <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                </Avatar>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} data-testid="button-logout">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Logout</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

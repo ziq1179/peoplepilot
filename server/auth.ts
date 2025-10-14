@@ -73,7 +73,7 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { username, password, email, firstName, lastName, role } = req.body;
+      const { username, password, email, firstName, lastName } = req.body;
 
       if (!username || !password) {
         return res.status(400).json({ message: "Username and password are required" });
@@ -92,12 +92,15 @@ export function setupAuth(app: Express) {
         firstName: firstName || null,
         lastName: lastName || null,
         profileImageUrl: null,
-        role: role || 'employee',
+        role: 'employee', // Always default to employee role for security
       });
+
+      // Remove password before sending to client
+      const { password: _, ...userWithoutPassword } = user;
 
       req.login(user, (err) => {
         if (err) return next(err);
-        res.status(201).json(user);
+        res.status(201).json(userWithoutPassword);
       });
     } catch (err) {
       next(err);
@@ -113,7 +116,9 @@ export function setupAuth(app: Express) {
       
       req.login(user, (err) => {
         if (err) return next(err);
-        res.status(200).json(user);
+        // Remove password before sending to client
+        const { password: _, ...userWithoutPassword } = user;
+        res.status(200).json(userWithoutPassword);
       });
     })(req, res, next);
   });
@@ -127,6 +132,8 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
-    res.json(req.user);
+    // Remove password before sending to client
+    const { password: _, ...userWithoutPassword } = req.user!;
+    res.json(userWithoutPassword);
   });
 }
