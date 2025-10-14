@@ -41,10 +41,15 @@ Preferred communication style: Simple, everyday language.
   - Document Management (file storage and categorization)
 
 ### Authentication & Authorization
-- **Provider**: Replit OIDC with automatic user provisioning
+- **Provider**: Custom username/password authentication with Passport.js local strategy
+- **Password Security**: Scrypt hashing algorithm for secure password storage
 - **Session Storage**: PostgreSQL-backed sessions with configurable TTL
-- **Role-Based Access**: Four-tier role system (admin, hr, manager, employee)
+- **Role-Based Access**: Four-tier role system (admin, hr, manager, employee) with secure defaults
 - **Route Protection**: Server-side middleware and client-side guards for secured endpoints
+- **Security Features**: 
+  - New users default to 'employee' role (prevents privilege escalation)
+  - Passwords never exposed to client (stripped from API responses)
+  - Duplicate username/email handling with proper error messages
 
 ### Development & Deployment
 - **Build System**: Vite for frontend bundling with esbuild for backend compilation
@@ -70,3 +75,30 @@ Preferred communication style: Simple, everyday language.
 - **Replit Platform**: Integrated development environment with runtime error monitoring
 - **TypeScript**: Static type checking for enhanced code reliability
 - **Drizzle Studio**: Database management and migration tooling
+
+## Recent Changes
+
+### Employee Management System (October 2024)
+**Authentication System Overhaul:**
+- Replaced Replit OIDC with custom username/password authentication
+- Implemented secure password hashing with scrypt algorithm
+- Added role-based access control with employee default for security
+- Created login/registration flow with session management
+
+**Employee Form Enhancements:**
+- Fixed form data loading bug (useState → useEffect)
+- Added proper TypeScript types for queries
+- Implemented empty field handling (converts empty strings to null for optional fields)
+- Prevents PostgreSQL date parsing errors for optional date fields
+- Supports both create and edit employee workflows
+
+**Query Client Improvements:**
+- Enhanced URL building to support path segments and query parameters
+- Handles complex query keys: `['/api/resource', id, { param: 'value' }]`
+- Properly serializes query parameters for filtered endpoints
+- Fixed malformed URL generation issue that caused 404 errors
+
+**UI Component Fixes:**
+- Fixed Radix UI Select empty value errors
+- Changed filter defaults from empty strings to "all" in Employees page
+- Improved error messaging and form validation
