@@ -102,7 +102,17 @@ export function setupAuth(app: Express) {
         if (err) return next(err);
         res.status(201).json(userWithoutPassword);
       });
-    } catch (err) {
+    } catch (err: any) {
+      // Handle database constraint violations
+      if (err?.code === '23505') {
+        if (err.constraint?.includes('email')) {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        if (err.constraint?.includes('username')) {
+          return res.status(400).json({ message: "Username already exists" });
+        }
+        return res.status(400).json({ message: "User already exists" });
+      }
       next(err);
     }
   });
