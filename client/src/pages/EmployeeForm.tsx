@@ -147,10 +147,24 @@ export default function EmployeeForm() {
   });
 
   const onSubmit = (data: any) => {
+    // Convert empty strings to null for optional fields
+    const cleanedData = {
+      ...data,
+      dateOfBirth: data.dateOfBirth || null,
+      phone: data.phone || null,
+      address: data.address || null,
+      departmentId: data.departmentId || null,
+      positionId: data.positionId || null,
+      managerId: data.managerId || null,
+      salary: data.salary || null,
+      emergencyContactName: data.emergencyContactName || null,
+      emergencyContactPhone: data.emergencyContactPhone || null,
+    };
+
     if (isEdit) {
-      updateMutation.mutate(data);
+      updateMutation.mutate(cleanedData);
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(cleanedData);
     }
   };
 

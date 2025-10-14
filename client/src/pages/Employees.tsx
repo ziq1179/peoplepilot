@@ -22,12 +22,16 @@ import type { Employee, Department } from "@shared/schema";
 
 export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
 
   const { data: employees, isLoading: employeesLoading } = useQuery({
-    queryKey: ['/api/employees', { search: searchTerm, departmentId: departmentFilter, status: statusFilter }],
+    queryKey: ['/api/employees', { 
+      search: searchTerm, 
+      departmentId: departmentFilter === "all" ? "" : departmentFilter, 
+      status: statusFilter === "all" ? "" : statusFilter 
+    }],
   });
 
   const { data: departments } = useQuery({
@@ -138,7 +142,7 @@ export default function Employees() {
                   <SelectValue placeholder="All Departments" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Departments</SelectItem>
+                  <SelectItem value="all">All Departments</SelectItem>
                   {departments?.map((dept: Department) => (
                     <SelectItem key={dept.id} value={dept.id}>
                       {dept.name}
@@ -155,7 +159,7 @@ export default function Employees() {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
                   <SelectItem value="on_leave">On Leave</SelectItem>
