@@ -3,10 +3,11 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/useAuth";
+import { AuthProvider } from "@/hooks/use-auth";
+import { ProtectedRoute } from "@/lib/protected-route";
 import { Layout } from "@/components/Layout";
 import NotFound from "@/pages/not-found";
-import Landing from "@/pages/Landing";
+import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import Employees from "@/pages/Employees";
 import EmployeeForm from "@/pages/EmployeeForm";
@@ -19,94 +20,22 @@ import Documents from "@/pages/Documents";
 import MyProfile from "@/pages/MyProfile";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mb-4 mx-auto">
-            <i className="fas fa-users text-primary-foreground"></i>
-          </div>
-          <p className="text-muted-foreground">Loading HRIS Portal...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <Switch>
-      {!isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/">
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </Route>
-          <Route path="/employees">
-            <Layout>
-              <Employees />
-            </Layout>
-          </Route>
-          <Route path="/employees/new">
-            <Layout>
-              <EmployeeForm />
-            </Layout>
-          </Route>
-          <Route path="/employees/:id/edit">
-            <Layout>
-              <EmployeeForm />
-            </Layout>
-          </Route>
-          <Route path="/departments">
-            <Layout>
-              <Departments />
-            </Layout>
-          </Route>
-          <Route path="/leave">
-            <Layout>
-              <Leave />
-            </Layout>
-          </Route>
-          <Route path="/payroll">
-            <Layout>
-              <Payroll />
-            </Layout>
-          </Route>
-          <Route path="/performance">
-            <Layout>
-              <Performance />
-            </Layout>
-          </Route>
-          <Route path="/reports">
-            <Layout>
-              <Reports />
-            </Layout>
-          </Route>
-          <Route path="/documents">
-            <Layout>
-              <Documents />
-            </Layout>
-          </Route>
-          <Route path="/my-profile">
-            <Layout>
-              <MyProfile />
-            </Layout>
-          </Route>
-          <Route path="/my-leave">
-            <Layout>
-              <Leave />
-            </Layout>
-          </Route>
-          <Route path="/my-payslips">
-            <Layout>
-              <Payroll />
-            </Layout>
-          </Route>
-        </>
-      )}
+      <Route path="/auth" component={AuthPage} />
+      <ProtectedRoute path="/" component={() => <Layout><Dashboard /></Layout>} />
+      <ProtectedRoute path="/employees" component={() => <Layout><Employees /></Layout>} />
+      <ProtectedRoute path="/employees/new" component={() => <Layout><EmployeeForm /></Layout>} />
+      <ProtectedRoute path="/employees/:id/edit" component={() => <Layout><EmployeeForm /></Layout>} />
+      <ProtectedRoute path="/departments" component={() => <Layout><Departments /></Layout>} />
+      <ProtectedRoute path="/leave" component={() => <Layout><Leave /></Layout>} />
+      <ProtectedRoute path="/payroll" component={() => <Layout><Payroll /></Layout>} />
+      <ProtectedRoute path="/performance" component={() => <Layout><Performance /></Layout>} />
+      <ProtectedRoute path="/reports" component={() => <Layout><Reports /></Layout>} />
+      <ProtectedRoute path="/documents" component={() => <Layout><Documents /></Layout>} />
+      <ProtectedRoute path="/my-profile" component={() => <Layout><MyProfile /></Layout>} />
+      <ProtectedRoute path="/my-leave" component={() => <Layout><Leave /></Layout>} />
+      <ProtectedRoute path="/my-payslips" component={() => <Layout><Payroll /></Layout>} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -115,10 +44,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
