@@ -10,6 +10,7 @@ import {
   insertLeaveRequestSchema,
   insertPayrollRecordSchema,
   insertPerformanceReviewSchema,
+  insertPerformanceGoalSchema,
   insertDocumentSchema 
 } from "@shared/schema";
 import { z } from "zod";
@@ -448,6 +449,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating performance review:", error);
       res.status(500).json({ message: "Failed to create performance review" });
+    }
+  });
+
+  app.get('/api/performance/reviews/:id', isAuthenticated, async (req, res) => {
+    try {
+      const review = await storage.getPerformanceReview(req.params.id);
+      if (!review) {
+        return res.status(404).json({ message: "Performance review not found" });
+      }
+      res.json(review);
+    } catch (error) {
+      console.error("Error fetching performance review:", error);
+      res.status(500).json({ message: "Failed to fetch performance review" });
+    }
+  });
+
+  app.put('/api/performance/reviews/:id', isAuthenticated, async (req, res) => {
+    try {
+      const reviewData = insertPerformanceReviewSchema.partial().parse(req.body);
+      const review = await storage.updatePerformanceReview(req.params.id, reviewData);
+      res.json(review);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid performance review data", errors: error.errors });
+      }
+      console.error("Error updating performance review:", error);
+      res.status(500).json({ message: "Failed to update performance review" });
+    }
+  });
+
+  // Performance goal routes
+  app.get('/api/performance/goals', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, status, createdBy } = req.query;
+      const filters = {
+        employeeId: employeeId as string,
+        status: status as string,
+        createdBy: createdBy as string,
+      };
+      const goals = await storage.getPerformanceGoals(filters);
+      res.json(goals);
+    } catch (error) {
+      console.error("Error fetching performance goals:", error);
+      res.status(500).json({ message: "Failed to fetch performance goals" });
+    }
+  });
+
+  app.post('/api/performance/goals', isAuthenticated, async (req, res) => {
+    try {
+      const goalData = insertPerformanceGoalSchema.parse(req.body);
+      const goal = await storage.createPerformanceGoal(goalData);
+      res.status(201).json(goal);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid goal data", errors: error.errors });
+      }
+      console.error("Error creating performance goal:", error);
+      res.status(500).json({ message: "Failed to create performance goal" });
+    }
+  });
+
+  app.get('/api/performance/goals/:id', isAuthenticated, async (req, res) => {
+    try {
+      const goal = await storage.getPerformanceGoal(req.params.id);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      res.json(goal);
+    } catch (error) {
+      console.error("Error fetching performance goal:", error);
+      res.status(500).json({ message: "Failed to fetch performance goal" });
+    }
+  });
+
+  app.put('/api/performance/goals/:id', isAuthenticated, async (req, res) => {
+    try {
+      const goalData = insertPerformanceGoalSchema.partial().parse(req.body);
+      const goal = await storage.updatePerformanceGoal(req.params.id, goalData);
+      res.json(goal);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid goal data", errors: error.errors });
+      }
+      console.error("Error updating performance goal:", error);
+      res.status(500).json({ message: "Failed to update performance goal" });
+    }
+  });
+
+  app.delete('/api/performance/goals/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deletePerformanceGoal(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting performance goal:", error);
+      res.status(500).json({ message: "Failed to delete performance goal" });
     }
   });
 
