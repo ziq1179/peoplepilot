@@ -14,6 +14,9 @@ import EmployeeForm from "@/pages/EmployeeForm";
 import Departments from "@/pages/Departments";
 import Leave from "@/pages/Leave";
 import LeaveTypes from "@/pages/LeaveTypes";
+import LeaveRequest from "@/pages/LeaveRequest";
+import MyLeaveRequests from "@/pages/MyLeaveRequests";
+import LeaveApprovals from "@/pages/LeaveApprovals";
 import Payroll from "@/pages/Payroll";
 import Performance from "@/pages/Performance";
 import Reports from "@/pages/Reports";
@@ -31,6 +34,9 @@ function Router() {
       <ProtectedRoute path="/departments" component={() => <Layout><Departments /></Layout>} />
       <ProtectedRoute path="/leave" component={() => <Layout><Leave /></Layout>} />
       <ProtectedRoute path="/leave/types" component={() => <Layout><LeaveTypes /></Layout>} />
+      <ProtectedRoute path="/leave/request" component={() => <Layout><LeaveRequest /></Layout>} />
+      <ProtectedRoute path="/leave/my-requests" component={() => <Layout><MyLeaveRequests /></Layout>} />
+      <ProtectedRoute path="/leave/approvals" component={() => <Layout><LeaveApprovals /></Layout>} />
       <ProtectedRoute path="/payroll" component={() => <Layout><Payroll /></Layout>} />
       <ProtectedRoute path="/performance" component={() => <Layout><Performance /></Layout>} />
       <ProtectedRoute path="/reports" component={() => <Layout><Reports /></Layout>} />

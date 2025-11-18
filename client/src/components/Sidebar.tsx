@@ -4,6 +4,7 @@ import {
   Users, 
   Building2, 
   Calendar, 
+  CheckCircle,
   DollarSign, 
   TrendingUp, 
   FileText, 
@@ -27,7 +28,8 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3, testId: 'link-dashboard' },
   { name: 'Employee Management', href: '/employees', icon: Users, testId: 'link-employees' },
   { name: 'Departments', href: '/departments', icon: Building2, testId: 'link-departments' },
-  { name: 'Leave Management', href: '/leave', icon: Calendar, testId: 'link-leave' },
+  { name: 'Request Leave', href: '/leave/request', icon: Calendar, testId: 'link-leave-request' },
+  { name: 'Leave Approvals', href: '/leave/approvals', icon: CheckCircle, testId: 'link-leave-approvals' },
   { name: 'Payroll', href: '/payroll', icon: DollarSign, testId: 'link-payroll' },
   { name: 'Performance', href: '/performance', icon: TrendingUp, testId: 'link-performance' },
   { name: 'Reports & Analytics', href: '/reports', icon: FileText, testId: 'link-reports' },
@@ -40,7 +42,7 @@ const settingsNavigation = [
 
 const selfServiceNavigation = [
   { name: 'My Profile', href: '/my-profile', icon: User, testId: 'link-profile' },
-  { name: 'My Leave Requests', href: '/my-leave', icon: CalendarCheck, testId: 'link-my-leave' },
+  { name: 'My Leave Requests', href: '/leave/my-requests', icon: CalendarCheck, testId: 'link-my-leave' },
   { name: 'My Payslips', href: '/my-payslips', icon: Receipt, testId: 'link-payslips' },
 ];
 
