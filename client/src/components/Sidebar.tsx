@@ -44,6 +44,7 @@ const settingsNavigation = [
 
 const selfServiceNavigation = [
   { name: 'My Profile', href: '/my-profile', icon: User, testId: 'link-profile' },
+  { name: 'My Performance', href: '/performance/my-performance', icon: TrendingUp, testId: 'link-my-performance' },
   { name: 'My Leave Requests', href: '/leave/my-requests', icon: CalendarCheck, testId: 'link-my-leave' },
   { name: 'My Payslips', href: '/my-payslips', icon: Receipt, testId: 'link-payslips' },
   { name: 'Self-Assessment', href: '/performance/self-assessment', icon: FileText, testId: 'link-self-assessment' },
