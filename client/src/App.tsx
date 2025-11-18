@@ -25,6 +25,9 @@ import MyPerformance from "@/pages/MyPerformance";
 import Reports from "@/pages/Reports";
 import Documents from "@/pages/Documents";
 import MyProfile from "@/pages/MyProfile";
+import JobPostings from "@/pages/JobPostings";
+import Applications from "@/pages/Applications";
+import Interviews from "@/pages/Interviews";
 
 function Router() {
   return (
@@ -50,6 +53,9 @@ function Router() {
       <ProtectedRoute path="/my-profile" component={() => <Layout><MyProfile /></Layout>} />
       <ProtectedRoute path="/my-leave" component={() => <Layout><Leave /></Layout>} />
       <ProtectedRoute path="/my-payslips" component={() => <Layout><Payroll /></Layout>} />
+      <ProtectedRoute path="/recruitment/jobs" component={() => <Layout><JobPostings /></Layout>} />
+      <ProtectedRoute path="/recruitment/applications" component={() => <Layout><Applications /></Layout>} />
+      <ProtectedRoute path="/recruitment/interviews" component={() => <Layout><Interviews /></Layout>} />
       <Route component={NotFound} />
     </Switch>
   );

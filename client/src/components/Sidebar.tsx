@@ -15,7 +15,10 @@ import {
   BarChart3,
   X,
   Settings,
-  Target
+  Target,
+  Briefcase,
+  UserPlus,
+  Video
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -36,6 +39,12 @@ const navigation = [
   { name: 'Goals', href: '/performance/goals', icon: Target, testId: 'link-goals' },
   { name: 'Reports & Analytics', href: '/reports', icon: FileText, testId: 'link-reports' },
   { name: 'Document Management', href: '/documents', icon: FolderOpen, testId: 'link-documents' },
+];
+
+const recruitmentNavigation = [
+  { name: 'Job Postings', href: '/recruitment/jobs', icon: Briefcase, testId: 'link-job-postings' },
+  { name: 'Applications', href: '/recruitment/applications', icon: UserPlus, testId: 'link-applications' },
+  { name: 'Interviews', href: '/recruitment/interviews', icon: Video, testId: 'link-interviews' },
 ];
 
 const settingsNavigation = [
@@ -99,6 +108,36 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
               </Link>
             );
           })}
+          
+          {/* Recruitment Section */}
+          <div className="pt-4 border-t border-border">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Recruitment
+            </p>
+            
+            {recruitmentNavigation.map((item) => {
+              const Icon = item.icon;
+              const isActive = location === item.href;
+              
+              return (
+                <Link key={item.name} href={item.href}>
+                  <a 
+                    className={cn(
+                      "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors",
+                      isActive 
+                        ? "text-primary bg-primary/10 border border-primary/20" 
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                    onClick={isMobile ? onClose : undefined}
+                    data-testid={item.testId}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.name}</span>
+                  </a>
+                </Link>
+              );
+            })}
+          </div>
           
           {/* Settings Section */}
           <div className="pt-4 border-t border-border">
