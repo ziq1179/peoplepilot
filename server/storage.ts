@@ -8,6 +8,7 @@ import {
   leaveBalances,
   payrollRecords,
   performanceReviews,
+  performanceGoals,
   documents,
   type User,
   type UpsertUser,
@@ -27,6 +28,8 @@ import {
   type InsertPayrollRecord,
   type PerformanceReview,
   type InsertPerformanceReview,
+  type PerformanceGoal,
+  type InsertPerformanceGoal,
   type Document,
   type InsertDocument,
 } from "@shared/schema";
@@ -115,8 +118,20 @@ export interface IStorage {
     reviewerId?: string;
     status?: string;
   }): Promise<PerformanceReview[]>;
+  getPerformanceReview(id: string): Promise<PerformanceReview | undefined>;
   createPerformanceReview(review: InsertPerformanceReview): Promise<PerformanceReview>;
   updatePerformanceReview(id: string, review: Partial<InsertPerformanceReview>): Promise<PerformanceReview>;
+  
+  // Performance goal operations
+  getPerformanceGoals(filters?: {
+    employeeId?: string;
+    status?: string;
+    createdBy?: string;
+  }): Promise<PerformanceGoal[]>;
+  getPerformanceGoal(id: string): Promise<PerformanceGoal | undefined>;
+  createPerformanceGoal(goal: InsertPerformanceGoal): Promise<PerformanceGoal>;
+  updatePerformanceGoal(id: string, goal: Partial<InsertPerformanceGoal>): Promise<PerformanceGoal>;
+  deletePerformanceGoal(id: string): Promise<void>;
   
   // Document operations
   getDocuments(filters?: {
@@ -520,6 +535,14 @@ export class DatabaseStorage implements IStorage {
     return newReview;
   }
 
+  async getPerformanceReview(id: string): Promise<PerformanceReview | undefined> {
+    const [review] = await db
+      .select()
+      .from(performanceReviews)
+      .where(eq(performanceReviews.id, id));
+    return review;
+  }
+
   async updatePerformanceReview(id: string, review: Partial<InsertPerformanceReview>): Promise<PerformanceReview> {
     const [updatedReview] = await db
       .update(performanceReviews)
@@ -527,6 +550,63 @@ export class DatabaseStorage implements IStorage {
       .where(eq(performanceReviews.id, id))
       .returning();
     return updatedReview;
+  }
+
+  // Performance goal operations
+  async getPerformanceGoals(filters?: {
+    employeeId?: string;
+    status?: string;
+    createdBy?: string;
+  }): Promise<PerformanceGoal[]> {
+    let query = db.select().from(performanceGoals);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.employeeId) {
+        conditions.push(eq(performanceGoals.employeeId, filters.employeeId));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(performanceGoals.status, filters.status));
+      }
+      
+      if (filters.createdBy) {
+        conditions.push(eq(performanceGoals.createdBy, filters.createdBy));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(performanceGoals.createdAt));
+  }
+
+  async getPerformanceGoal(id: string): Promise<PerformanceGoal | undefined> {
+    const [goal] = await db
+      .select()
+      .from(performanceGoals)
+      .where(eq(performanceGoals.id, id));
+    return goal;
+  }
+
+  async createPerformanceGoal(goal: InsertPerformanceGoal): Promise<PerformanceGoal> {
+    const [newGoal] = await db.insert(performanceGoals).values(goal).returning();
+    return newGoal;
+  }
+
+  async updatePerformanceGoal(id: string, goal: Partial<InsertPerformanceGoal>): Promise<PerformanceGoal> {
+    const [updatedGoal] = await db
+      .update(performanceGoals)
+      .set({ ...goal, updatedAt: new Date() })
+      .where(eq(performanceGoals.id, id))
+      .returning();
+    return updatedGoal;
+  }
+
+  async deletePerformanceGoal(id: string): Promise<void> {
+    await db.delete(performanceGoals).where(eq(performanceGoals.id, id));
   }
 
   // Document operations

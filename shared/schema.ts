@@ -153,12 +153,43 @@ export const performanceReviews = pgTable("performance_reviews", {
   reviewPeriodStart: date("review_period_start").notNull(),
   reviewPeriodEnd: date("review_period_end").notNull(),
   overallRating: integer("overall_rating"), // 1-5 scale
+  
+  // Competency Ratings (1-5 scale)
+  technicalSkillsRating: integer("technical_skills_rating"),
+  communicationRating: integer("communication_rating"),
+  leadershipRating: integer("leadership_rating"),
+  teamworkRating: integer("teamwork_rating"),
+  problemSolvingRating: integer("problem_solving_rating"),
+  
+  // Self-assessment (completed by employee)
+  selfAssessment: text("self_assessment"),
+  selfRating: integer("self_rating"), // Employee's own overall rating
+  
   goals: text("goals"),
   achievements: text("achievements"),
   areasForImprovement: text("areas_for_improvement"),
   comments: text("comments"),
-  status: varchar("status").notNull().default('draft'), // 'draft', 'submitted', 'completed'
+  status: varchar("status").notNull().default('draft'), // 'draft', 'self_assessment', 'in_progress', 'completed'
   submittedAt: timestamp("submitted_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Performance Goals
+export const performanceGoals = pgTable("performance_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").references(() => employees.id).notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull().default('individual'), // 'individual', 'team', 'company'
+  targetDate: date("target_date"),
+  progress: integer("progress").default(0), // 0-100%
+  status: varchar("status").notNull().default('not_started'), // 'not_started', 'in_progress', 'completed', 'missed'
+  linkedReviewId: varchar("linked_review_id").references(() => performanceReviews.id),
+  createdBy: varchar("created_by").references(() => employees.id).notNull(),
+  approvedBy: varchar("approved_by").references(() => employees.id),
+  approvedAt: timestamp("approved_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -222,6 +253,7 @@ export const employeeRelations = relations(employees, ({ many, one }) => ({
   leaveBalances: many(leaveBalances),
   payrollRecords: many(payrollRecords),
   performanceReviews: many(performanceReviews),
+  performanceGoals: many(performanceGoals),
   documents: many(documents),
 }));
 
@@ -258,7 +290,7 @@ export const payrollRecordRelations = relations(payrollRecords, ({ one }) => ({
   }),
 }));
 
-export const performanceReviewRelations = relations(performanceReviews, ({ one }) => ({
+export const performanceReviewRelations = relations(performanceReviews, ({ one, many }) => ({
   employee: one(employees, {
     fields: [performanceReviews.employeeId],
     references: [employees.id],
@@ -266,6 +298,26 @@ export const performanceReviewRelations = relations(performanceReviews, ({ one }
   reviewer: one(employees, {
     fields: [performanceReviews.reviewerId],
     references: [employees.id],
+  }),
+  goals: many(performanceGoals),
+}));
+
+export const performanceGoalRelations = relations(performanceGoals, ({ one }) => ({
+  employee: one(employees, {
+    fields: [performanceGoals.employeeId],
+    references: [employees.id],
+  }),
+  createdBy: one(employees, {
+    fields: [performanceGoals.createdBy],
+    references: [employees.id],
+  }),
+  approvedBy: one(employees, {
+    fields: [performanceGoals.approvedBy],
+    references: [employees.id],
+  }),
+  linkedReview: one(performanceReviews, {
+    fields: [performanceGoals.linkedReviewId],
+    references: [performanceReviews.id],
   }),
 }));
 
@@ -331,6 +383,12 @@ export const insertPerformanceReviewSchema = createInsertSchema(performanceRevie
   updatedAt: true,
 });
 
+export const insertPerformanceGoalSchema = createInsertSchema(performanceGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
   createdAt: true,
@@ -355,5 +413,7 @@ export type PayrollRecord = typeof payrollRecords.$inferSelect;
 export type InsertPayrollRecord = z.infer<typeof insertPayrollRecordSchema>;
 export type PerformanceReview = typeof performanceReviews.$inferSelect;
 export type InsertPerformanceReview = z.infer<typeof insertPerformanceReviewSchema>;
+export type PerformanceGoal = typeof performanceGoals.$inferSelect;
+export type InsertPerformanceGoal = z.infer<typeof insertPerformanceGoalSchema>;
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
