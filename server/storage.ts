@@ -79,6 +79,8 @@ export interface IStorage {
   // Leave type operations
   getLeaveTypes(): Promise<LeaveType[]>;
   createLeaveType(leaveType: InsertLeaveType): Promise<LeaveType>;
+  updateLeaveType(id: string, leaveType: Partial<InsertLeaveType>): Promise<LeaveType>;
+  deleteLeaveType(id: string): Promise<void>;
   
   // Leave request operations
   getLeaveRequests(filters?: {
@@ -308,6 +310,18 @@ export class DatabaseStorage implements IStorage {
   async createLeaveType(leaveType: InsertLeaveType): Promise<LeaveType> {
     const [newLeaveType] = await db.insert(leaveTypes).values(leaveType).returning();
     return newLeaveType;
+  }
+
+  async updateLeaveType(id: string, leaveType: Partial<InsertLeaveType>): Promise<LeaveType> {
+    const [updatedLeaveType] = await db.update(leaveTypes)
+      .set(leaveType)
+      .where(eq(leaveTypes.id, id))
+      .returning();
+    return updatedLeaveType;
+  }
+
+  async deleteLeaveType(id: string): Promise<void> {
+    await db.delete(leaveTypes).where(eq(leaveTypes.id, id));
   }
 
   // Leave request operations

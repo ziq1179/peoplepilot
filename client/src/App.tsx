@@ -13,6 +13,7 @@ import Employees from "@/pages/Employees";
 import EmployeeForm from "@/pages/EmployeeForm";
 import Departments from "@/pages/Departments";
 import Leave from "@/pages/Leave";
+import LeaveTypes from "@/pages/LeaveTypes";
 import Payroll from "@/pages/Payroll";
 import Performance from "@/pages/Performance";
 import Reports from "@/pages/Reports";
@@ -29,6 +30,7 @@ function Router() {
       <ProtectedRoute path="/employees/:id/edit" component={() => <Layout><EmployeeForm /></Layout>} />
       <ProtectedRoute path="/departments" component={() => <Layout><Departments /></Layout>} />
       <ProtectedRoute path="/leave" component={() => <Layout><Leave /></Layout>} />
+      <ProtectedRoute path="/leave/types" component={() => <Layout><LeaveTypes /></Layout>} />
       <ProtectedRoute path="/payroll" component={() => <Layout><Payroll /></Layout>} />
       <ProtectedRoute path="/performance" component={() => <Layout><Performance /></Layout>} />
       <ProtectedRoute path="/reports" component={() => <Layout><Reports /></Layout>} />

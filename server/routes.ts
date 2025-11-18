@@ -6,6 +6,7 @@ import {
   insertDepartmentSchema,
   insertPositionSchema,
   insertEmployeeSchema,
+  insertLeaveTypeSchema,
   insertLeaveRequestSchema,
   insertPayrollRecordSchema,
   insertPerformanceReviewSchema,
@@ -194,6 +195,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching leave types:", error);
       res.status(500).json({ message: "Failed to fetch leave types" });
+    }
+  });
+
+  app.post('/api/leave/types', isAuthenticated, async (req, res) => {
+    try {
+      const leaveTypeData = insertLeaveTypeSchema.parse(req.body);
+      const leaveType = await storage.createLeaveType(leaveTypeData);
+      res.status(201).json(leaveType);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid leave type data", errors: error.errors });
+      }
+      console.error("Error creating leave type:", error);
+      res.status(500).json({ message: "Failed to create leave type" });
+    }
+  });
+
+  app.put('/api/leave/types/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const leaveTypeData = insertLeaveTypeSchema.partial().parse(req.body);
+      const leaveType = await storage.updateLeaveType(id, leaveTypeData);
+      res.json(leaveType);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid leave type data", errors: error.errors });
+      }
+      console.error("Error updating leave type:", error);
+      res.status(500).json({ message: "Failed to update leave type" });
+    }
+  });
+
+  app.delete('/api/leave/types/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteLeaveType(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting leave type:", error);
+      res.status(500).json({ message: "Failed to delete leave type" });
     }
   });
 
