@@ -78,6 +78,27 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### Leave Management System (November 2024)
+**Leave Policy Configuration:**
+- Implemented Leave Types management page for admin/HR roles
+- Created full CRUD operations for leave type policies
+- Added 6 default leave types with realistic allowances:
+  - Annual Leave: 20 days (carry forward enabled)
+  - Sick Leave: 10 days
+  - Personal Leave: 5 days
+  - Maternity Leave: 90 days
+  - Paternity Leave: 14 days
+  - Compassionate Leave: 7 days
+- Color-coded leave types for visual identification
+- Carry forward toggle for leave balance rollover policies
+- Form validation with Zod schemas for data integrity
+- Settings section added to sidebar navigation
+
+**Bug Fixes:**
+- Fixed missing insertLeaveTypeSchema import in routes
+- Resolved dialog opening issue with DialogTrigger component
+- E2E tested with Playwright for user flows
+
 ### Employee Management System (October 2024)
 **Authentication System Overhaul:**
 - Replaced Replit OIDC with custom username/password authentication
