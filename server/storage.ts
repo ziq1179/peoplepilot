@@ -95,7 +95,9 @@ export interface IStorage {
   
   // Leave balance operations
   getLeaveBalances(employeeId: string, year?: number): Promise<LeaveBalance[]>;
+  createLeaveBalance(balance: InsertLeaveBalance): Promise<LeaveBalance>;
   updateLeaveBalance(id: string, balance: Partial<InsertLeaveBalance>): Promise<LeaveBalance>;
+  initializeLeaveBalancesForEmployee(employeeId: string, year: number): Promise<void>;
   
   // Payroll operations
   getPayrollRecords(filters?: {
@@ -390,6 +392,11 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
+  async createLeaveBalance(balance: InsertLeaveBalance): Promise<LeaveBalance> {
+    const [newBalance] = await db.insert(leaveBalances).values(balance).returning();
+    return newBalance;
+  }
+
   async updateLeaveBalance(id: string, balance: Partial<InsertLeaveBalance>): Promise<LeaveBalance> {
     const [updatedBalance] = await db
       .update(leaveBalances)
@@ -397,6 +404,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(leaveBalances.id, id))
       .returning();
     return updatedBalance;
+  }
+
+  async initializeLeaveBalancesForEmployee(employeeId: string, year: number): Promise<void> {
+    const allLeaveTypes = await this.getLeaveTypes();
+    
+    for (const leaveType of allLeaveTypes) {
+      const existingBalance = await db
+        .select()
+        .from(leaveBalances)
+        .where(
+          and(
+            eq(leaveBalances.employeeId, employeeId),
+            eq(leaveBalances.leaveTypeId, leaveType.id),
+            eq(leaveBalances.year, year)
+          )
+        );
+      
+      if (existingBalance.length === 0) {
+        await this.createLeaveBalance({
+          employeeId,
+          leaveTypeId: leaveType.id,
+          year,
+          allocated: leaveType.daysAllowed,
+          used: 0,
+          remaining: leaveType.daysAllowed,
+        });
+      }
+    }
   }
 
   // Payroll operations
