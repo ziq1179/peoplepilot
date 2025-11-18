@@ -296,6 +296,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/leave/balances/initialize/:employeeId', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId } = req.params;
+      const { year } = req.body;
+      const currentYear = year || new Date().getFullYear();
+      await storage.initializeLeaveBalancesForEmployee(employeeId, currentYear);
+      res.json({ message: "Leave balances initialized successfully" });
+    } catch (error) {
+      console.error("Error initializing leave balances:", error);
+      res.status(500).json({ message: "Failed to initialize leave balances" });
+    }
+  });
+
+  app.put('/api/leave/requests/:id/approve', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { comments } = req.body;
+      const user = req.user as any;
+      
+      const leaveRequest = await storage.getLeaveRequest(id);
+      if (!leaveRequest) {
+        return res.status(404).json({ message: "Leave request not found" });
+      }
+      
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(403).json({ message: "Employee profile not found" });
+      }
+      
+      const updatedRequest = await storage.updateLeaveRequest(id, {
+        status: 'approved',
+        approvedBy: employee.id,
+        approvalDate: new Date(),
+        comments: comments || null,
+      });
+      
+      const balances = await storage.getLeaveBalances(leaveRequest.employeeId, new Date().getFullYear());
+      const balance = balances.find(b => b.leaveTypeId === leaveRequest.leaveTypeId);
+      
+      if (balance) {
+        await storage.updateLeaveBalance(balance.id, {
+          used: (balance.used || 0) + leaveRequest.daysRequested,
+          remaining: balance.remaining - leaveRequest.daysRequested,
+        });
+      }
+      
+      res.json(updatedRequest);
+    } catch (error) {
+      console.error("Error approving leave request:", error);
+      res.status(500).json({ message: "Failed to approve leave request" });
+    }
+  });
+
+  app.put('/api/leave/requests/:id/reject', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { comments } = req.body;
+      const user = req.user as any;
+      
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(403).json({ message: "Employee profile not found" });
+      }
+      
+      const updatedRequest = await storage.updateLeaveRequest(id, {
+        status: 'rejected',
+        approvedBy: employee.id,
+        approvalDate: new Date(),
+        comments: comments || null,
+      });
+      
+      res.json(updatedRequest);
+    } catch (error) {
+      console.error("Error rejecting leave request:", error);
+      res.status(500).json({ message: "Failed to reject leave request" });
+    }
+  });
+
   // Payroll routes
   app.get('/api/payroll', isAuthenticated, async (req, res) => {
     try {
