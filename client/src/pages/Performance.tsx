@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Slider } from "@/components/ui/slider";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -43,6 +44,11 @@ export default function Performance() {
       reviewPeriodStart: "",
       reviewPeriodEnd: "",
       overallRating: 3,
+      technicalSkillsRating: 3,
+      communicationRating: 3,
+      leadershipRating: 3,
+      teamworkRating: 3,
+      problemSolvingRating: 3,
       goals: "",
       achievements: "",
       areasForImprovement: "",
@@ -136,6 +142,17 @@ export default function Performance() {
     if (rating >= 4) return "text-accent";
     if (rating >= 3) return "text-chart-4";
     return "text-destructive";
+  };
+
+  const getRatingLabel = (value: number): string => {
+    const labels: Record<number, string> = {
+      1: "Needs Improvement",
+      2: "Below Expectations",
+      3: "Meets Expectations",
+      4: "Exceeds Expectations",
+      5: "Outstanding",
+    };
+    return labels[value] || "Not Rated";
   };
 
   const handleSubmit = (id: string) => {
@@ -316,6 +333,150 @@ export default function Performance() {
                     </FormItem>
                   )}
                 />
+
+                <div className="space-y-4 border-t pt-4">
+                  <h3 className="text-lg font-semibold">Competency Ratings</h3>
+                  
+                  <FormField
+                    control={form.control}
+                    name="technicalSkillsRating"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex justify-between items-center mb-2">
+                          <FormLabel>Technical Skills</FormLabel>
+                          <span className="text-sm font-semibold text-primary">
+                            {field.value} - {getRatingLabel(field.value)}
+                          </span>
+                        </div>
+                        <FormControl>
+                          <Slider
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[field.value ?? 3]}
+                            onValueChange={([value]) => field.onChange(value ?? 3)}
+                            data-testid="slider-technical-skills"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Proficiency in technical skills required for the role
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="communicationRating"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex justify-between items-center mb-2">
+                          <FormLabel>Communication</FormLabel>
+                          <span className="text-sm font-semibold text-primary">
+                            {field.value} - {getRatingLabel(field.value)}
+                          </span>
+                        </div>
+                        <FormControl>
+                          <Slider
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[field.value ?? 3]}
+                            onValueChange={([value]) => field.onChange(value ?? 3)}
+                            data-testid="slider-communication"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Ability to communicate effectively with team and stakeholders
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="leadershipRating"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex justify-between items-center mb-2">
+                          <FormLabel>Leadership</FormLabel>
+                          <span className="text-sm font-semibold text-primary">
+                            {field.value} - {getRatingLabel(field.value)}
+                          </span>
+                        </div>
+                        <FormControl>
+                          <Slider
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[field.value ?? 3]}
+                            onValueChange={([value]) => field.onChange(value ?? 3)}
+                            data-testid="slider-leadership"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Ability to lead projects, mentor others, and take initiative
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="teamworkRating"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex justify-between items-center mb-2">
+                          <FormLabel>Teamwork</FormLabel>
+                          <span className="text-sm font-semibold text-primary">
+                            {field.value} - {getRatingLabel(field.value)}
+                          </span>
+                        </div>
+                        <FormControl>
+                          <Slider
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[field.value ?? 3]}
+                            onValueChange={([value]) => field.onChange(value ?? 3)}
+                            data-testid="slider-teamwork"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Collaboration skills and contribution to team success
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="problemSolvingRating"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex justify-between items-center mb-2">
+                          <FormLabel>Problem Solving</FormLabel>
+                          <span className="text-sm font-semibold text-primary">
+                            {field.value} - {getRatingLabel(field.value)}
+                          </span>
+                        </div>
+                        <FormControl>
+                          <Slider
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[field.value ?? 3]}
+                            onValueChange={([value]) => field.onChange(value ?? 3)}
+                            data-testid="slider-problem-solving"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Ability to analyze issues and develop effective solutions
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}
