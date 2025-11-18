@@ -19,6 +19,7 @@ import MyLeaveRequests from "@/pages/MyLeaveRequests";
 import LeaveApprovals from "@/pages/LeaveApprovals";
 import Payroll from "@/pages/Payroll";
 import Performance from "@/pages/Performance";
+import Goals from "@/pages/Goals";
 import Reports from "@/pages/Reports";
 import Documents from "@/pages/Documents";
 import MyProfile from "@/pages/MyProfile";
@@ -39,6 +40,7 @@ function Router() {
       <ProtectedRoute path="/leave/approvals" component={() => <Layout><LeaveApprovals /></Layout>} />
       <ProtectedRoute path="/payroll" component={() => <Layout><Payroll /></Layout>} />
       <ProtectedRoute path="/performance" component={() => <Layout><Performance /></Layout>} />
+      <ProtectedRoute path="/performance/goals" component={() => <Layout><Goals /></Layout>} />
       <ProtectedRoute path="/reports" component={() => <Layout><Reports /></Layout>} />
       <ProtectedRoute path="/documents" component={() => <Layout><Documents /></Layout>} />
       <ProtectedRoute path="/my-profile" component={() => <Layout><MyProfile /></Layout>} />

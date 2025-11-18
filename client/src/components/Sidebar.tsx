@@ -14,7 +14,8 @@ import {
   Receipt,
   BarChart3,
   X,
-  Settings
+  Settings,
+  Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,6 +33,7 @@ const navigation = [
   { name: 'Leave Approvals', href: '/leave/approvals', icon: CheckCircle, testId: 'link-leave-approvals' },
   { name: 'Payroll', href: '/payroll', icon: DollarSign, testId: 'link-payroll' },
   { name: 'Performance', href: '/performance', icon: TrendingUp, testId: 'link-performance' },
+  { name: 'Goals', href: '/performance/goals', icon: Target, testId: 'link-goals' },
   { name: 'Reports & Analytics', href: '/reports', icon: FileText, testId: 'link-reports' },
   { name: 'Document Management', href: '/documents', icon: FolderOpen, testId: 'link-documents' },
 ];
