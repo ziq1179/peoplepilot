@@ -10,6 +10,9 @@ import {
   performanceReviews,
   performanceGoals,
   documents,
+  jobPostings,
+  applications,
+  interviews,
   type User,
   type UpsertUser,
   type Department,
@@ -32,6 +35,12 @@ import {
   type InsertPerformanceGoal,
   type Document,
   type InsertDocument,
+  type JobPosting,
+  type InsertJobPosting,
+  type Application,
+  type InsertApplication,
+  type Interview,
+  type InsertInterview,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, like, or, count, sql } from "drizzle-orm";
@@ -140,6 +149,38 @@ export interface IStorage {
   }): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
   deleteDocument(id: string): Promise<void>;
+  
+  // Job posting operations
+  getJobPostings(filters?: {
+    status?: string;
+    departmentId?: string;
+  }): Promise<JobPosting[]>;
+  getJobPosting(id: string): Promise<JobPosting | undefined>;
+  createJobPosting(jobPosting: InsertJobPosting): Promise<JobPosting>;
+  updateJobPosting(id: string, jobPosting: Partial<InsertJobPosting>): Promise<JobPosting>;
+  deleteJobPosting(id: string): Promise<void>;
+  
+  // Application operations
+  getApplications(filters?: {
+    jobPostingId?: string;
+    status?: string;
+    assignedTo?: string;
+  }): Promise<Application[]>;
+  getApplication(id: string): Promise<Application | undefined>;
+  createApplication(application: InsertApplication): Promise<Application>;
+  updateApplication(id: string, application: Partial<InsertApplication>): Promise<Application>;
+  deleteApplication(id: string): Promise<void>;
+  
+  // Interview operations
+  getInterviews(filters?: {
+    applicationId?: string;
+    interviewerId?: string;
+    status?: string;
+  }): Promise<Interview[]>;
+  getInterview(id: string): Promise<Interview | undefined>;
+  createInterview(interview: InsertInterview): Promise<Interview>;
+  updateInterview(id: string, interview: Partial<InsertInterview>): Promise<Interview>;
+  deleteInterview(id: string): Promise<void>;
   
   // Dashboard statistics
   getDashboardStats(): Promise<{
@@ -648,6 +689,172 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDocument(id: string): Promise<void> {
     await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  // Job posting operations
+  async getJobPostings(filters?: {
+    status?: string;
+    departmentId?: string;
+  }): Promise<JobPosting[]> {
+    let query = db.select().from(jobPostings);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.status) {
+        conditions.push(eq(jobPostings.status, filters.status));
+      }
+      
+      if (filters.departmentId) {
+        conditions.push(eq(jobPostings.departmentId, filters.departmentId));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(jobPostings.createdAt));
+  }
+
+  async getJobPosting(id: string): Promise<JobPosting | undefined> {
+    const [jobPosting] = await db
+      .select()
+      .from(jobPostings)
+      .where(eq(jobPostings.id, id));
+    return jobPosting;
+  }
+
+  async createJobPosting(jobPosting: InsertJobPosting): Promise<JobPosting> {
+    const [newJobPosting] = await db.insert(jobPostings).values(jobPosting).returning();
+    return newJobPosting;
+  }
+
+  async updateJobPosting(id: string, jobPosting: Partial<InsertJobPosting>): Promise<JobPosting> {
+    const [updatedJobPosting] = await db
+      .update(jobPostings)
+      .set({ ...jobPosting, updatedAt: new Date() })
+      .where(eq(jobPostings.id, id))
+      .returning();
+    return updatedJobPosting;
+  }
+
+  async deleteJobPosting(id: string): Promise<void> {
+    await db.delete(jobPostings).where(eq(jobPostings.id, id));
+  }
+
+  // Application operations
+  async getApplications(filters?: {
+    jobPostingId?: string;
+    status?: string;
+    assignedTo?: string;
+  }): Promise<Application[]> {
+    let query = db.select().from(applications);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.jobPostingId) {
+        conditions.push(eq(applications.jobPostingId, filters.jobPostingId));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(applications.status, filters.status));
+      }
+      
+      if (filters.assignedTo) {
+        conditions.push(eq(applications.assignedTo, filters.assignedTo));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(applications.appliedAt));
+  }
+
+  async getApplication(id: string): Promise<Application | undefined> {
+    const [application] = await db
+      .select()
+      .from(applications)
+      .where(eq(applications.id, id));
+    return application;
+  }
+
+  async createApplication(application: InsertApplication): Promise<Application> {
+    const [newApplication] = await db.insert(applications).values(application).returning();
+    return newApplication;
+  }
+
+  async updateApplication(id: string, application: Partial<InsertApplication>): Promise<Application> {
+    const [updatedApplication] = await db
+      .update(applications)
+      .set({ ...application, updatedAt: new Date() })
+      .where(eq(applications.id, id))
+      .returning();
+    return updatedApplication;
+  }
+
+  async deleteApplication(id: string): Promise<void> {
+    await db.delete(applications).where(eq(applications.id, id));
+  }
+
+  // Interview operations
+  async getInterviews(filters?: {
+    applicationId?: string;
+    interviewerId?: string;
+    status?: string;
+  }): Promise<Interview[]> {
+    let query = db.select().from(interviews);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.applicationId) {
+        conditions.push(eq(interviews.applicationId, filters.applicationId));
+      }
+      
+      if (filters.interviewerId) {
+        conditions.push(eq(interviews.interviewerId, filters.interviewerId));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(interviews.status, filters.status));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(interviews.scheduledDate));
+  }
+
+  async getInterview(id: string): Promise<Interview | undefined> {
+    const [interview] = await db
+      .select()
+      .from(interviews)
+      .where(eq(interviews.id, id));
+    return interview;
+  }
+
+  async createInterview(interview: InsertInterview): Promise<Interview> {
+    const [newInterview] = await db.insert(interviews).values(interview).returning();
+    return newInterview;
+  }
+
+  async updateInterview(id: string, interview: Partial<InsertInterview>): Promise<Interview> {
+    const [updatedInterview] = await db
+      .update(interviews)
+      .set({ ...interview, updatedAt: new Date() })
+      .where(eq(interviews.id, id))
+      .returning();
+    return updatedInterview;
+  }
+
+  async deleteInterview(id: string): Promise<void> {
+    await db.delete(interviews).where(eq(interviews.id, id));
   }
 
   // Dashboard statistics

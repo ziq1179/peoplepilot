@@ -11,7 +11,10 @@ import {
   insertPayrollRecordSchema,
   insertPerformanceReviewSchema,
   insertPerformanceGoalSchema,
-  insertDocumentSchema 
+  insertDocumentSchema,
+  insertJobPostingSchema,
+  insertApplicationSchema,
+  insertInterviewSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -574,6 +577,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating document:", error);
       res.status(500).json({ message: "Failed to create document" });
+    }
+  });
+
+  // Job Posting routes
+  app.get('/api/recruitment/jobs', isAuthenticated, async (req, res) => {
+    try {
+      const { status, departmentId } = req.query;
+      const filters = {
+        status: status as string,
+        departmentId: departmentId as string,
+      };
+      const jobs = await storage.getJobPostings(filters);
+      res.json(jobs);
+    } catch (error) {
+      console.error("Error fetching job postings:", error);
+      res.status(500).json({ message: "Failed to fetch job postings" });
+    }
+  });
+
+  app.get('/api/recruitment/jobs/:id', isAuthenticated, async (req, res) => {
+    try {
+      const job = await storage.getJobPosting(req.params.id);
+      if (!job) {
+        return res.status(404).json({ message: "Job posting not found" });
+      }
+      res.json(job);
+    } catch (error) {
+      console.error("Error fetching job posting:", error);
+      res.status(500).json({ message: "Failed to fetch job posting" });
+    }
+  });
+
+  app.post('/api/recruitment/jobs', isAuthenticated, async (req, res) => {
+    try {
+      const jobData = insertJobPostingSchema.parse(req.body);
+      const job = await storage.createJobPosting(jobData);
+      res.status(201).json(job);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid job posting data", errors: error.errors });
+      }
+      console.error("Error creating job posting:", error);
+      res.status(500).json({ message: "Failed to create job posting" });
+    }
+  });
+
+  app.put('/api/recruitment/jobs/:id', isAuthenticated, async (req, res) => {
+    try {
+      const jobData = insertJobPostingSchema.partial().parse(req.body);
+      const job = await storage.updateJobPosting(req.params.id, jobData);
+      res.json(job);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid job posting data", errors: error.errors });
+      }
+      console.error("Error updating job posting:", error);
+      res.status(500).json({ message: "Failed to update job posting" });
+    }
+  });
+
+  app.delete('/api/recruitment/jobs/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteJobPosting(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting job posting:", error);
+      res.status(500).json({ message: "Failed to delete job posting" });
+    }
+  });
+
+  // Application routes
+  app.get('/api/recruitment/applications', isAuthenticated, async (req, res) => {
+    try {
+      const { jobPostingId, status, assignedTo } = req.query;
+      const filters = {
+        jobPostingId: jobPostingId as string,
+        status: status as string,
+        assignedTo: assignedTo as string,
+      };
+      const applications = await storage.getApplications(filters);
+      res.json(applications);
+    } catch (error) {
+      console.error("Error fetching applications:", error);
+      res.status(500).json({ message: "Failed to fetch applications" });
+    }
+  });
+
+  app.get('/api/recruitment/applications/:id', isAuthenticated, async (req, res) => {
+    try {
+      const application = await storage.getApplication(req.params.id);
+      if (!application) {
+        return res.status(404).json({ message: "Application not found" });
+      }
+      res.json(application);
+    } catch (error) {
+      console.error("Error fetching application:", error);
+      res.status(500).json({ message: "Failed to fetch application" });
+    }
+  });
+
+  app.post('/api/recruitment/applications', isAuthenticated, async (req, res) => {
+    try {
+      const applicationData = insertApplicationSchema.parse(req.body);
+      const application = await storage.createApplication(applicationData);
+      res.status(201).json(application);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid application data", errors: error.errors });
+      }
+      console.error("Error creating application:", error);
+      res.status(500).json({ message: "Failed to create application" });
+    }
+  });
+
+  app.put('/api/recruitment/applications/:id', isAuthenticated, async (req, res) => {
+    try {
+      const applicationData = insertApplicationSchema.partial().parse(req.body);
+      const application = await storage.updateApplication(req.params.id, applicationData);
+      res.json(application);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid application data", errors: error.errors });
+      }
+      console.error("Error updating application:", error);
+      res.status(500).json({ message: "Failed to update application" });
+    }
+  });
+
+  app.delete('/api/recruitment/applications/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteApplication(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting application:", error);
+      res.status(500).json({ message: "Failed to delete application" });
+    }
+  });
+
+  // Interview routes
+  app.get('/api/recruitment/interviews', isAuthenticated, async (req, res) => {
+    try {
+      const { applicationId, interviewerId, status } = req.query;
+      const filters = {
+        applicationId: applicationId as string,
+        interviewerId: interviewerId as string,
+        status: status as string,
+      };
+      const interviews = await storage.getInterviews(filters);
+      res.json(interviews);
+    } catch (error) {
+      console.error("Error fetching interviews:", error);
+      res.status(500).json({ message: "Failed to fetch interviews" });
+    }
+  });
+
+  app.get('/api/recruitment/interviews/:id', isAuthenticated, async (req, res) => {
+    try {
+      const interview = await storage.getInterview(req.params.id);
+      if (!interview) {
+        return res.status(404).json({ message: "Interview not found" });
+      }
+      res.json(interview);
+    } catch (error) {
+      console.error("Error fetching interview:", error);
+      res.status(500).json({ message: "Failed to fetch interview" });
+    }
+  });
+
+  app.post('/api/recruitment/interviews', isAuthenticated, async (req, res) => {
+    try {
+      const interviewData = insertInterviewSchema.parse(req.body);
+      const interview = await storage.createInterview(interviewData);
+      res.status(201).json(interview);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid interview data", errors: error.errors });
+      }
+      console.error("Error creating interview:", error);
+      res.status(500).json({ message: "Failed to create interview" });
+    }
+  });
+
+  app.put('/api/recruitment/interviews/:id', isAuthenticated, async (req, res) => {
+    try {
+      const interviewData = insertInterviewSchema.partial().parse(req.body);
+      const interview = await storage.updateInterview(req.params.id, interviewData);
+      res.json(interview);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid interview data", errors: error.errors });
+      }
+      console.error("Error updating interview:", error);
+      res.status(500).json({ message: "Failed to update interview" });
+    }
+  });
+
+  app.delete('/api/recruitment/interviews/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteInterview(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting interview:", error);
+      res.status(500).json({ message: "Failed to delete interview" });
     }
   });
 

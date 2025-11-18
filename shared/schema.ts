@@ -210,6 +210,81 @@ export const documents = pgTable("documents", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Recruitment - Job Postings
+export const jobPostings = pgTable("job_postings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  description: text("description").notNull(),
+  departmentId: varchar("department_id").references(() => departments.id),
+  positionId: varchar("position_id").references(() => positions.id),
+  location: varchar("location"),
+  employmentType: varchar("employment_type").notNull().default('full-time'), // 'full-time', 'part-time', 'contract', 'internship'
+  salaryMin: decimal("salary_min", { precision: 10, scale: 2 }),
+  salaryMax: decimal("salary_max", { precision: 10, scale: 2 }),
+  requirements: text("requirements"),
+  responsibilities: text("responsibilities"),
+  qualifications: text("qualifications"),
+  benefits: text("benefits"),
+  status: varchar("status").notNull().default('draft'), // 'draft', 'open', 'closed', 'on-hold'
+  openings: integer("openings").default(1),
+  applicationDeadline: date("application_deadline"),
+  postedBy: varchar("posted_by").references(() => employees.id),
+  postedAt: timestamp("posted_at"),
+  closedAt: timestamp("closed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Recruitment - Applications
+export const applications = pgTable("applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobPostingId: varchar("job_posting_id").references(() => jobPostings.id).notNull(),
+  candidateName: varchar("candidate_name").notNull(),
+  candidateEmail: varchar("candidate_email").notNull(),
+  candidatePhone: varchar("candidate_phone"),
+  resumeUrl: varchar("resume_url"),
+  coverLetter: text("cover_letter"),
+  linkedinUrl: varchar("linkedin_url"),
+  portfolioUrl: varchar("portfolio_url"),
+  yearsOfExperience: integer("years_of_experience"),
+  currentCompany: varchar("current_company"),
+  currentPosition: varchar("current_position"),
+  expectedSalary: decimal("expected_salary", { precision: 10, scale: 2 }),
+  noticePeriod: varchar("notice_period"),
+  status: varchar("status").notNull().default('new'), // 'new', 'screening', 'shortlisted', 'interview', 'offer', 'hired', 'rejected'
+  rating: integer("rating"), // 1-5 scale
+  notes: text("notes"),
+  rejectionReason: text("rejection_reason"),
+  assignedTo: varchar("assigned_to").references(() => employees.id), // HR or hiring manager
+  screenedBy: varchar("screened_by").references(() => employees.id),
+  screenedAt: timestamp("screened_at"),
+  appliedAt: timestamp("applied_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Recruitment - Interviews
+export const interviews = pgTable("interviews", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  applicationId: varchar("application_id").references(() => applications.id).notNull(),
+  interviewType: varchar("interview_type").notNull(), // 'phone', 'video', 'in-person', 'technical', 'hr', 'final'
+  scheduledDate: timestamp("scheduled_date").notNull(),
+  duration: integer("duration").default(60), // minutes
+  location: varchar("location"), // physical location or video link
+  interviewerId: varchar("interviewer_id").references(() => employees.id),
+  additionalInterviewers: text("additional_interviewers"), // comma-separated employee IDs or names
+  status: varchar("status").notNull().default('scheduled'), // 'scheduled', 'completed', 'cancelled', 'no-show'
+  feedback: text("feedback"),
+  technicalRating: integer("technical_rating"), // 1-5
+  communicationRating: integer("communication_rating"), // 1-5
+  cultureFitRating: integer("culture_fit_rating"), // 1-5
+  overallRating: integer("overall_rating"), // 1-5
+  recommendation: varchar("recommendation"), // 'strong-hire', 'hire', 'maybe', 'no-hire'
+  notes: text("notes"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const departmentRelations = relations(departments, ({ many, one }) => ({
   employees: many(employees),
@@ -332,6 +407,49 @@ export const documentRelations = relations(documents, ({ one }) => ({
   }),
 }));
 
+export const jobPostingRelations = relations(jobPostings, ({ one, many }) => ({
+  department: one(departments, {
+    fields: [jobPostings.departmentId],
+    references: [departments.id],
+  }),
+  position: one(positions, {
+    fields: [jobPostings.positionId],
+    references: [positions.id],
+  }),
+  postedBy: one(employees, {
+    fields: [jobPostings.postedBy],
+    references: [employees.id],
+  }),
+  applications: many(applications),
+}));
+
+export const applicationRelations = relations(applications, ({ one, many }) => ({
+  jobPosting: one(jobPostings, {
+    fields: [applications.jobPostingId],
+    references: [jobPostings.id],
+  }),
+  assignedTo: one(employees, {
+    fields: [applications.assignedTo],
+    references: [employees.id],
+  }),
+  screenedBy: one(employees, {
+    fields: [applications.screenedBy],
+    references: [employees.id],
+  }),
+  interviews: many(interviews),
+}));
+
+export const interviewRelations = relations(interviews, ({ one }) => ({
+  application: one(applications, {
+    fields: [interviews.applicationId],
+    references: [applications.id],
+  }),
+  interviewer: one(employees, {
+    fields: [interviews.interviewerId],
+    references: [employees.id],
+  }),
+}));
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -394,6 +512,24 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   createdAt: true,
 });
 
+export const insertJobPostingSchema = createInsertSchema(jobPostings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertApplicationSchema = createInsertSchema(applications).omit({
+  id: true,
+  appliedAt: true,
+  updatedAt: true,
+});
+
+export const insertInterviewSchema = createInsertSchema(interviews).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -417,3 +553,9 @@ export type PerformanceGoal = typeof performanceGoals.$inferSelect;
 export type InsertPerformanceGoal = z.infer<typeof insertPerformanceGoalSchema>;
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type JobPosting = typeof jobPostings.$inferSelect;
+export type InsertJobPosting = z.infer<typeof insertJobPostingSchema>;
+export type Application = typeof applications.$inferSelect;
+export type InsertApplication = z.infer<typeof insertApplicationSchema>;
+export type Interview = typeof interviews.$inferSelect;
+export type InsertInterview = z.infer<typeof insertInterviewSchema>;
