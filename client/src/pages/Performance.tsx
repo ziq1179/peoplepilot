@@ -24,12 +24,12 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function Performance() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: performanceReviews, isLoading: reviewsLoading } = useQuery({
-    queryKey: ['/api/performance/reviews', { status: statusFilter }],
+    queryKey: ['/api/performance/reviews', { status: statusFilter === "all" ? undefined : statusFilter }],
   });
 
   const { data: employees } = useQuery({
@@ -651,7 +651,7 @@ export default function Performance() {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="submitted">Submitted</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>

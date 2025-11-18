@@ -67,7 +67,7 @@ export const positions = pgTable("positions", {
 export const employees = pgTable("employees", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
-  employeeId: varchar("employee_id").unique().notNull(),
+  employeeId: varchar("employee_id").unique(),
   firstName: varchar("first_name").notNull(),
   lastName: varchar("last_name").notNull(),
   email: varchar("email").unique().notNull(),

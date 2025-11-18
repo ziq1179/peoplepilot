@@ -34,7 +34,7 @@ import {
   type InsertDocument,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, like, or, count } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, or, count, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -302,6 +302,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createEmployee(employee: InsertEmployee): Promise<Employee> {
+    // Auto-generate employeeId if not provided
+    if (!employee.employeeId || employee.employeeId.trim() === '') {
+      const count = await db.select({ count: sql<number>`count(*)` }).from(employees);
+      const nextNumber = (count[0]?.count || 0) + 1;
+      employee.employeeId = `EMP${String(nextNumber).padStart(4, '0')}`;
+    }
     const [newEmployee] = await db.insert(employees).values(employee).returning();
     return newEmployee;
   }
