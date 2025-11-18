@@ -42,7 +42,7 @@ export default function LeaveApprovals() {
 
   const approveMutation = useMutation({
     mutationFn: async ({ id, comments }: { id: string; comments: string }) => {
-      return await apiRequest(`/api/leave/requests/${id}/approve`, "PUT", { comments });
+      return await apiRequest("PUT", `/api/leave/requests/${id}/approve`, { comments });
     },
     onSuccess: () => {
       toast({
@@ -64,7 +64,7 @@ export default function LeaveApprovals() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ id, comments }: { id: string; comments: string }) => {
-      return await apiRequest(`/api/leave/requests/${id}/reject`, "PUT", { comments });
+      return await apiRequest("PUT", `/api/leave/requests/${id}/reject`, { comments });
     },
     onSuccess: () => {
       toast({

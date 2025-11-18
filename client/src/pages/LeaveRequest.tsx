@@ -78,7 +78,7 @@ export default function LeaveRequest() {
   const createMutation = useMutation({
     mutationFn: async (data: LeaveRequestForm) => {
       if (!employee) throw new Error("Employee profile not found");
-      return await apiRequest("/api/leave/requests", "POST", {
+      return await apiRequest("POST", "/api/leave/requests", {
         employeeId: employee.id,
         leaveTypeId: data.leaveTypeId,
         startDate: data.startDate,
