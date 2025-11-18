@@ -79,10 +79,35 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 ### Leave Management System (November 2024)
+**Complete Leave Workflow Implementation:**
+- Built full end-to-end leave management system with request submission, approval workflow, and balance tracking
+- Three main pages: Request Leave, My Leave Requests, and Leave Approvals
+
+**Leave Request Submission:**
+- Employee request form with real-time balance display
+- Business days calculation between start and end dates
+- Balance validation before submission
+- Automatic leave type selection with color-coded badges
+- Reason field for leave justification
+
+**Leave Approvals:**
+- Manager/HR approval interface with pending request queue
+- Approve/reject actions with mandatory reviewer comments
+- Automatic balance deduction upon approval
+- Real-time status updates and notifications
+- Cache invalidation for instant UI refresh
+
+**Leave Balance Tracking:**
+- Per-employee balances for each leave type by year
+- Balance initialization API for new employees
+- Automatic balance updates on request approval
+- Real-time balance display: allocated, used, remaining
+- Support for balance carry-forward policies
+
 **Leave Policy Configuration:**
-- Implemented Leave Types management page for admin/HR roles
-- Created full CRUD operations for leave type policies
-- Added 6 default leave types with realistic allowances:
+- Leave Types management page for admin/HR roles
+- Full CRUD operations for leave type policies
+- 6 default leave types with realistic allowances:
   - Annual Leave: 20 days (carry forward enabled)
   - Sick Leave: 10 days
   - Personal Leave: 5 days
@@ -90,14 +115,25 @@ Preferred communication style: Simple, everyday language.
   - Paternity Leave: 14 days
   - Compassionate Leave: 7 days
 - Color-coded leave types for visual identification
-- Carry forward toggle for leave balance rollover policies
-- Form validation with Zod schemas for data integrity
-- Settings section added to sidebar navigation
+
+**API Endpoints:**
+- POST /api/leave/balances/initialize/:employeeId - Initialize balances
+- GET /api/leave/balances - Get balances (with filters)
+- POST /api/leave/requests - Submit leave request
+- PUT /api/leave/requests/:id/approve - Approve request
+- PUT /api/leave/requests/:id/reject - Reject request
+- GET /api/employees/by-user/:userId - Lookup employee by user ID
 
 **Bug Fixes:**
+- Fixed apiRequest parameter order throughout codebase (method, url, data)
+- Added missing GET /api/employees/by-user/:userId route for employee lookup
 - Fixed missing insertLeaveTypeSchema import in routes
 - Resolved dialog opening issue with DialogTrigger component
-- E2E tested with Playwright for user flows
+
+**Testing:**
+- E2E tested complete workflow with Playwright (35 test steps)
+- Validated: registration → employee creation → balance init → request → approval
+- Confirmed balance updates and status transitions work correctly
 
 ### Employee Management System (October 2024)
 **Authentication System Overhaul:**
