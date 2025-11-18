@@ -135,6 +135,98 @@ Preferred communication style: Simple, everyday language.
 - Validated: registration → employee creation → balance init → request → approval
 - Confirmed balance updates and status transitions work correctly
 
+### Performance Management System (November 2024)
+**Complete Performance Review & Goals Tracking Implementation:**
+- Built comprehensive performance management module with four integrated pages
+- Supports complete performance cycle: goal setting → self-assessment → manager review → tracking
+- Four main pages: Performance Reviews, Goals, Self-Assessment, and My Performance Dashboard
+
+**Performance Reviews (Manager/HR Functionality):**
+- Create and manage employee performance reviews with detailed competency assessments
+- Five-category competency rating system (1-5 scale with slider controls):
+  - Technical Skills Rating
+  - Communication Rating
+  - Leadership Rating
+  - Teamwork Rating
+  - Problem Solving Rating
+- Overall rating calculation and tracking
+- Review period definition (start/end dates)
+- Status workflow: draft → self_assessment → in_progress → completed
+- Manager comments, goals, achievements, and improvement areas documentation
+- Filter reviews by status (all, draft, in progress, completed)
+- View/edit existing reviews with full edit capability
+
+**Performance Goals Management:**
+- Employee and manager goal creation and tracking
+- Goal categorization: Individual, Team, or Company goals
+- Progress tracking with visual slider (0-100%)
+- Target date setting and monitoring
+- Status tracking: not_started → in_progress → completed/missed
+- Goal approval workflow (created by employee, approved by manager)
+- Link goals to performance reviews
+- Filter goals by status and category
+- Real-time progress updates with visual indicators
+
+**Employee Self-Assessment:**
+- Employee-initiated self-evaluation interface
+- Self-rating on five competency categories (matching manager review structure)
+- Overall self-rating submission
+- Text areas for self-assessment narrative, achievements, and development areas
+- Automatically finds pending reviews assigned to logged-in employee
+- Updates review status to 'in_progress' upon submission
+- Real-time cache invalidation for instant status updates
+
+**My Performance Dashboard (Employee View):**
+- Unified view of employee's performance data
+- Display all performance reviews with status badges
+- Show all assigned goals with progress bars
+- Quick access to self-assessment for pending reviews
+- Performance overview with key metrics
+- Visual status indicators: color-coded badges and progress bars
+- Empty states for new employees with no reviews/goals yet
+
+**Database Schema:**
+- `performance_reviews` table with individual competency rating columns (not JSON)
+- `performance_goals` table with progress tracking and approval workflow
+- Foreign key relationships: employeeId, reviewerId, createdBy, approvedBy
+- Timestamp tracking: createdAt, updatedAt, submittedAt, completedAt, approvedAt
+- Status enums for workflow management
+
+**API Endpoints:**
+- GET /api/performance/reviews - List all reviews (with status filter support)
+- POST /api/performance/reviews - Create new review
+- GET /api/performance/reviews/:id - Get specific review
+- PUT /api/performance/reviews/:id - Update review
+- DELETE /api/performance/reviews/:id - Delete review
+- GET /api/performance/goals - List all goals (with status/category filters)
+- POST /api/performance/goals - Create new goal
+- GET /api/performance/goals/:id - Get specific goal
+- PUT /api/performance/goals/:id - Update goal
+- DELETE /api/performance/goals/:id - Delete goal
+
+**Bug Fixes:**
+- Fixed slider default values with `?? 3` fallback to prevent undefined errors
+- Fixed employeeId auto-generation using EMP0001, EMP0002 pattern when not provided
+- Added missing `sql` import in server/storage.ts for UUID generation
+- Fixed Radix UI SelectItem empty value error by using "all" instead of ""
+- Ensured proper TypeScript types for all competency rating fields
+- Fixed form validation to allow optional competency ratings
+
+**Technical Implementation Details:**
+- Individual rating columns (technicalSkillsRating, communicationRating, etc.) stored as integers (1-5 scale)
+- Slider components properly handle null/undefined values with fallback defaults
+- Form validation uses Zod schemas from drizzle-zod with proper type inference
+- TanStack Query for efficient caching and real-time updates
+- Optimistic UI updates with cache invalidation after mutations
+- shadcn/ui components for consistent design: Sliders, Badges, Progress bars, Dialog forms
+
+**Testing:**
+- E2E tested all performance pages with Playwright
+- Validated: All four pages load without errors
+- Confirmed UI elements render correctly (buttons, forms, sliders)
+- Verified navigation between performance pages works
+- Tested with fresh user registration flow
+
 ### Employee Management System (October 2024)
 **Authentication System Overhaul:**
 - Replaced Replit OIDC with custom username/password authentication
