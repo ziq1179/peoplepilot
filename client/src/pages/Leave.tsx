@@ -22,12 +22,12 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function Leave() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: leaveRequests, isLoading: requestsLoading } = useQuery({
-    queryKey: ['/api/leave/requests', { status: statusFilter }],
+    queryKey: ['/api/leave/requests', { status: statusFilter === 'all' ? '' : statusFilter }],
   });
 
   const { data: leaveTypes } = useQuery({
@@ -421,7 +421,7 @@ export default function Leave() {
                   <SelectValue placeholder="All Requests" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Requests</SelectItem>
+                  <SelectItem value="all">All Requests</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>

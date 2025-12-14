@@ -20,13 +20,16 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function Payroll() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [employeeFilter, setEmployeeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [employeeFilter, setEmployeeFilter] = useState("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: payrollRecords, isLoading: payrollLoading } = useQuery({
-    queryKey: ['/api/payroll', { status: statusFilter, employeeId: employeeFilter }],
+    queryKey: ['/api/payroll', { 
+      status: statusFilter === 'all' ? '' : statusFilter, 
+      employeeId: employeeFilter === 'all' ? '' : employeeFilter 
+    }],
   });
 
   const { data: employees } = useQuery({
@@ -468,7 +471,7 @@ export default function Payroll() {
                   <SelectValue placeholder="All Employees" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Employees</SelectItem>
+                  <SelectItem value="all">All Employees</SelectItem>
                   {employees?.map((emp: Employee) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.firstName} {emp.lastName}
@@ -482,7 +485,7 @@ export default function Payroll() {
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="processed">Processed</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>

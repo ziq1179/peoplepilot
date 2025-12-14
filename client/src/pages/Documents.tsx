@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { insertDocumentSchema } from "@shared/schema";
 import { 
@@ -35,7 +35,7 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 
 export default function Documents() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
@@ -43,7 +43,7 @@ export default function Documents() {
   const queryClient = useQueryClient();
 
   const { data: documents, isLoading: documentsLoading } = useQuery({
-    queryKey: ['/api/documents', { category: categoryFilter }],
+    queryKey: ['/api/documents', { category: categoryFilter === 'all' ? '' : categoryFilter }],
   });
 
   const { data: employees } = useQuery({
@@ -199,7 +199,7 @@ export default function Documents() {
   };
 
   const filteredDocuments = documents?.filter((doc: Document) => {
-    const matchesCategory = !categoryFilter || doc.category === categoryFilter;
+    const matchesCategory = categoryFilter === 'all' || doc.category === categoryFilter;
     const matchesSearch = !searchTerm || 
       doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -437,7 +437,7 @@ export default function Documents() {
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {documentCategories.map((category) => (
                     <SelectItem key={category.value} value={category.value}>
                       {category.label}

@@ -2,8 +2,13 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
+import { isAuthenticated, requireRole, requireHR, requireAdmin, requireManager } from "./middleware/rbac";
+import { authLimiter, apiLimiter, sanitizeBody } from "./middleware/security";
 import { 
+  insertCompanySchema,
   insertDepartmentSchema,
+  insertTeamSchema,
+  insertSubTeamSchema,
   insertPositionSchema,
   insertEmployeeSchema,
   insertLeaveTypeSchema,
@@ -18,17 +23,152 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
-// Middleware to check if user is authenticated
-const isAuthenticated = (req: any, res: any, next: any) => {
-  if (req.isAuthenticated()) {
-    return next();
-  }
-  res.status(401).json({ message: "Unauthorized" });
-};
+// Authentication middleware is now imported from middleware/rbac.ts
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Apply rate limiting to all API routes
+  app.use('/api', apiLimiter);
+  
   // Auth setup (includes /api/register, /api/login, /api/logout, /api/user routes)
   setupAuth(app);
+  
+  // Apply body sanitization to all routes
+  app.use('/api', sanitizeBody);
+
+  // User management routes (Admin only)
+  app.get('/api/users', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.getUsers();
+      // Remove passwords from response
+      const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+      res.json(usersWithoutPasswords);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.post('/api/users', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { username, password, email, firstName, lastName, role } = req.body;
+
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+
+      // Validate role if provided
+      const validRoles = ['admin', 'hr', 'manager', 'employee'];
+      const userRole = role && validRoles.includes(role) ? role : 'employee';
+
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+
+      // Import hashPassword from auth
+      const { hashPassword } = await import('./auth');
+      const hashedPassword = await hashPassword(password);
+
+      const user = await storage.createUser({
+        username,
+        password: hashedPassword,
+        email: email || null,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        profileImageUrl: null,
+        role: userRole,
+      });
+
+      // Remove password before sending to client
+      const { password: _, ...userWithoutPassword } = user;
+      res.status(201).json(userWithoutPassword);
+    } catch (error: any) {
+      // Handle database constraint violations
+      if (error?.code === '23505') {
+        if (error.constraint?.includes('email')) {
+          return res.status(400).json({ message: "Email already exists" });
+        }
+        if (error.constraint?.includes('username')) {
+          return res.status(400).json({ message: "Username already exists" });
+        }
+        return res.status(400).json({ message: "User already exists" });
+      }
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
+  app.put('/api/users/:id', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role, email, firstName, lastName, profileImageUrl } = req.body;
+      
+      // Validate role if provided
+      if (role && !['admin', 'hr', 'manager', 'employee'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      const updateData: any = {};
+      if (role !== undefined) updateData.role = role;
+      if (email !== undefined) updateData.email = email;
+      if (firstName !== undefined) updateData.firstName = firstName;
+      if (lastName !== undefined) updateData.lastName = lastName;
+      if (profileImageUrl !== undefined) updateData.profileImageUrl = profileImageUrl;
+
+      const user = await storage.updateUser(id, updateData);
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      if (error.message === 'User not found') {
+        return res.status(404).json({ message: "User not found" });
+      }
+      console.error("Error updating user:", error);
+      res.status(500).json({ message: "Failed to update user" });
+    }
+  });
+
+  app.delete('/api/users/:id', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Prevent deleting yourself
+      if (req.user?.id === id) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      await storage.deleteUser(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  // Password reset route (Admin only)
+  app.post('/api/users/:id/reset-password', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { newPassword } = req.body;
+
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters long" });
+      }
+
+      // Import hashPassword from auth
+      const { hashPassword } = await import('./auth');
+      const hashedPassword = await hashPassword(newPassword);
+
+      await storage.updateUserPassword(id, hashedPassword);
+      
+      res.json({ message: "Password reset successfully" });
+    } catch (error: any) {
+      if (error.message === 'User not found') {
+        return res.status(404).json({ message: "User not found" });
+      }
+      console.error("Error resetting password:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
 
   // Dashboard routes
   app.get('/api/dashboard/stats', isAuthenticated, async (req, res) => {
@@ -46,42 +186,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const departments = await storage.getDepartments();
       res.json(departments);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching departments:", error);
-      res.status(500).json({ message: "Failed to fetch departments" });
+      console.error("Error details:", {
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack
+      });
+      res.status(500).json({ 
+        message: "Failed to fetch departments",
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+      });
     }
   });
 
-  app.post('/api/departments', isAuthenticated, async (req, res) => {
+  app.post('/api/departments', isAuthenticated, requireHR, async (req, res) => {
     try {
-      const departmentData = insertDepartmentSchema.parse(req.body);
+      // Convert empty strings to null for optional fields
+      const cleanedData = {
+        ...req.body,
+        managerId: req.body.managerId && req.body.managerId.trim() !== '' ? req.body.managerId : null,
+        description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null,
+        budget: req.body.budget && req.body.budget.trim() !== '' ? req.body.budget : null,
+      };
+      
+      const departmentData = insertDepartmentSchema.parse(cleanedData);
       const department = await storage.createDepartment(departmentData);
       res.status(201).json(department);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid department data", errors: error.errors });
       }
+      
+      // Handle foreign key constraint violations
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('manager_id')) {
+          return res.status(400).json({ message: "Invalid manager selected. Please select a valid employee as manager or leave it empty." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
       console.error("Error creating department:", error);
-      res.status(500).json({ message: "Failed to create department" });
+      console.error("Error stack:", error?.stack);
+      console.error("Error message:", error?.message);
+      console.error("Error code:", error?.code);
+      res.status(500).json({ 
+        message: "Failed to create department",
+        error: process.env.NODE_ENV === 'development' ? error?.message : undefined
+      });
     }
   });
 
-  app.put('/api/departments/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/departments/:id', isAuthenticated, requireHR, async (req, res) => {
     try {
       const { id } = req.params;
-      const departmentData = insertDepartmentSchema.partial().parse(req.body);
+      
+      // Convert empty strings to null for optional fields
+      const cleanedData: any = {};
+      if (req.body.managerId !== undefined) {
+        cleanedData.managerId = req.body.managerId && req.body.managerId.trim() !== '' ? req.body.managerId : null;
+      }
+      if (req.body.description !== undefined) {
+        cleanedData.description = req.body.description && req.body.description.trim() !== '' ? req.body.description : null;
+      }
+      if (req.body.budget !== undefined) {
+        cleanedData.budget = req.body.budget && req.body.budget.trim() !== '' ? req.body.budget : null;
+      }
+      if (req.body.name !== undefined) {
+        cleanedData.name = req.body.name;
+      }
+      
+      const departmentData = insertDepartmentSchema.partial().parse(cleanedData);
       const department = await storage.updateDepartment(id, departmentData);
       res.json(department);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid department data", errors: error.errors });
       }
+      
+      // Handle foreign key constraint violations
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('manager_id')) {
+          return res.status(400).json({ message: "Invalid manager selected. Please select a valid employee as manager or leave it empty." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
       console.error("Error updating department:", error);
       res.status(500).json({ message: "Failed to update department" });
     }
   });
 
-  app.delete('/api/departments/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/departments/:id', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       await storage.deleteDepartment(id);
@@ -106,17 +302,299 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/positions', isAuthenticated, async (req, res) => {
+  app.post('/api/positions', isAuthenticated, requireHR, async (req, res) => {
     try {
-      const positionData = insertPositionSchema.parse(req.body);
+      // Convert empty strings to null for optional fields
+      const cleanedData = {
+        ...req.body,
+        departmentId: req.body.departmentId && req.body.departmentId.trim() !== '' ? req.body.departmentId : null,
+        description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null,
+        minSalary: req.body.minSalary && req.body.minSalary.trim() !== '' ? req.body.minSalary : null,
+        maxSalary: req.body.maxSalary && req.body.maxSalary.trim() !== '' ? req.body.maxSalary : null,
+        requirements: req.body.requirements && req.body.requirements.trim() !== '' ? req.body.requirements : null,
+      };
+      
+      const positionData = insertPositionSchema.parse(cleanedData);
       const position = await storage.createPosition(positionData);
       res.status(201).json(position);
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid position data", errors: error.errors });
       }
+      
+      // Handle foreign key constraint violations
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('department_id')) {
+          return res.status(400).json({ message: "Invalid department selected. Please select a valid department or leave it empty." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
       console.error("Error creating position:", error);
       res.status(500).json({ message: "Failed to create position" });
+    }
+  });
+
+  app.put('/api/positions/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Convert empty strings to null for optional fields
+      const cleanedData: any = {};
+      if (req.body.title !== undefined) cleanedData.title = req.body.title;
+      if (req.body.departmentId !== undefined) {
+        cleanedData.departmentId = req.body.departmentId && req.body.departmentId.trim() !== '' ? req.body.departmentId : null;
+      }
+      if (req.body.description !== undefined) {
+        cleanedData.description = req.body.description && req.body.description.trim() !== '' ? req.body.description : null;
+      }
+      if (req.body.minSalary !== undefined) {
+        cleanedData.minSalary = req.body.minSalary && req.body.minSalary.trim() !== '' ? req.body.minSalary : null;
+      }
+      if (req.body.maxSalary !== undefined) {
+        cleanedData.maxSalary = req.body.maxSalary && req.body.maxSalary.trim() !== '' ? req.body.maxSalary : null;
+      }
+      if (req.body.requirements !== undefined) {
+        cleanedData.requirements = req.body.requirements && req.body.requirements.trim() !== '' ? req.body.requirements : null;
+      }
+      
+      const positionData = insertPositionSchema.partial().parse(cleanedData);
+      const position = await storage.updatePosition(id, positionData);
+      res.json(position);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid position data", errors: error.errors });
+      }
+      
+      // Handle foreign key constraint violations
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('department_id')) {
+          return res.status(400).json({ message: "Invalid department selected. Please select a valid department or leave it empty." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
+      console.error("Error updating position:", error);
+      res.status(500).json({ message: "Failed to update position" });
+    }
+  });
+
+  app.delete('/api/positions/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deletePosition(id);
+      res.status(204).send();
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        return res.status(400).json({ message: "Cannot delete position. It is being used by employees or job postings." });
+      }
+      console.error("Error deleting position:", error);
+      res.status(500).json({ message: "Failed to delete position" });
+    }
+  });
+
+  // Team routes
+  app.get('/api/teams', isAuthenticated, async (req, res) => {
+    try {
+      const { departmentId } = req.query;
+      const filters = departmentId ? { departmentId: departmentId as string } : undefined;
+      const teams = await storage.getTeams(filters);
+      res.json(teams);
+    } catch (error) {
+      console.error("Error fetching teams:", error);
+      res.status(500).json({ message: "Failed to fetch teams" });
+    }
+  });
+
+  app.post('/api/teams', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      // Convert empty strings to null for optional fields
+      const cleanedData = {
+        ...req.body,
+        departmentId: req.body.departmentId && req.body.departmentId.trim() !== '' ? req.body.departmentId : null,
+        description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null,
+        teamLeadId: req.body.teamLeadId && req.body.teamLeadId.trim() !== '' ? req.body.teamLeadId : null,
+      };
+      
+      const teamData = insertTeamSchema.parse(cleanedData);
+      const team = await storage.createTeam(teamData);
+      res.status(201).json(team);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid team data", errors: error.errors });
+      }
+      
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('department_id')) {
+          return res.status(400).json({ message: "Invalid department selected." });
+        }
+        if (error.constraint?.includes('team_lead_id')) {
+          return res.status(400).json({ message: "Invalid team lead selected." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
+      console.error("Error creating team:", error);
+      res.status(500).json({ message: "Failed to create team" });
+    }
+  });
+
+  app.put('/api/teams/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Convert empty strings to null for optional fields
+      const cleanedData: any = {};
+      if (req.body.name !== undefined) cleanedData.name = req.body.name;
+      if (req.body.departmentId !== undefined) {
+        cleanedData.departmentId = req.body.departmentId && req.body.departmentId.trim() !== '' ? req.body.departmentId : null;
+      }
+      if (req.body.description !== undefined) {
+        cleanedData.description = req.body.description && req.body.description.trim() !== '' ? req.body.description : null;
+      }
+      if (req.body.teamLeadId !== undefined) {
+        cleanedData.teamLeadId = req.body.teamLeadId && req.body.teamLeadId.trim() !== '' ? req.body.teamLeadId : null;
+      }
+      
+      const teamData = insertTeamSchema.partial().parse(cleanedData);
+      const team = await storage.updateTeam(id, teamData);
+      res.json(team);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid team data", errors: error.errors });
+      }
+      
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('department_id')) {
+          return res.status(400).json({ message: "Invalid department selected." });
+        }
+        if (error.constraint?.includes('team_lead_id')) {
+          return res.status(400).json({ message: "Invalid team lead selected." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
+      if (error.message === 'Team not found') {
+        return res.status(404).json({ message: "Team not found" });
+      }
+      
+      console.error("Error updating team:", error);
+      res.status(500).json({ message: "Failed to update team" });
+    }
+  });
+
+  app.delete('/api/teams/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteTeam(id);
+      res.status(204).send();
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        return res.status(400).json({ message: "Cannot delete team. It has sub-teams or is being used." });
+      }
+      console.error("Error deleting team:", error);
+      res.status(500).json({ message: "Failed to delete team" });
+    }
+  });
+
+  // Sub-team routes
+  app.get('/api/sub-teams', isAuthenticated, async (req, res) => {
+    try {
+      const { teamId } = req.query;
+      const filters = teamId ? { teamId: teamId as string } : undefined;
+      const subTeams = await storage.getSubTeams(filters);
+      res.json(subTeams);
+    } catch (error) {
+      console.error("Error fetching sub-teams:", error);
+      res.status(500).json({ message: "Failed to fetch sub-teams" });
+    }
+  });
+
+  app.post('/api/sub-teams', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      // Convert empty strings to null for optional fields
+      const cleanedData = {
+        ...req.body,
+        description: req.body.description && req.body.description.trim() !== '' ? req.body.description : null,
+        subTeamLeadId: req.body.subTeamLeadId && req.body.subTeamLeadId.trim() !== '' ? req.body.subTeamLeadId : null,
+      };
+      
+      const subTeamData = insertSubTeamSchema.parse(cleanedData);
+      const subTeam = await storage.createSubTeam(subTeamData);
+      res.status(201).json(subTeam);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid sub-team data", errors: error.errors });
+      }
+      
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('team_id')) {
+          return res.status(400).json({ message: "Invalid team selected." });
+        }
+        if (error.constraint?.includes('sub_team_lead_id')) {
+          return res.status(400).json({ message: "Invalid sub-team lead selected." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
+      console.error("Error creating sub-team:", error);
+      res.status(500).json({ message: "Failed to create sub-team" });
+    }
+  });
+
+  app.put('/api/sub-teams/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Convert empty strings to null for optional fields
+      const cleanedData: any = {};
+      if (req.body.name !== undefined) cleanedData.name = req.body.name;
+      if (req.body.teamId !== undefined) cleanedData.teamId = req.body.teamId;
+      if (req.body.description !== undefined) {
+        cleanedData.description = req.body.description && req.body.description.trim() !== '' ? req.body.description : null;
+      }
+      if (req.body.subTeamLeadId !== undefined) {
+        cleanedData.subTeamLeadId = req.body.subTeamLeadId && req.body.subTeamLeadId.trim() !== '' ? req.body.subTeamLeadId : null;
+      }
+      
+      const subTeamData = insertSubTeamSchema.partial().parse(cleanedData);
+      const subTeam = await storage.updateSubTeam(id, subTeamData);
+      res.json(subTeam);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid sub-team data", errors: error.errors });
+      }
+      
+      if (error?.code === '23503') {
+        if (error.constraint?.includes('team_id')) {
+          return res.status(400).json({ message: "Invalid team selected." });
+        }
+        if (error.constraint?.includes('sub_team_lead_id')) {
+          return res.status(400).json({ message: "Invalid sub-team lead selected." });
+        }
+        return res.status(400).json({ message: "Invalid reference. Please check all selected values." });
+      }
+      
+      if (error.message === 'Sub-team not found') {
+        return res.status(404).json({ message: "Sub-team not found" });
+      }
+      
+      console.error("Error updating sub-team:", error);
+      res.status(500).json({ message: "Failed to update sub-team" });
+    }
+  });
+
+  app.delete('/api/sub-teams/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteSubTeam(id);
+      res.status(204).send();
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        return res.status(400).json({ message: "Cannot delete sub-team. It is being used." });
+      }
+      console.error("Error deleting sub-team:", error);
+      res.status(500).json({ message: "Failed to delete sub-team" });
     }
   });
 
@@ -165,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/employees', isAuthenticated, async (req, res) => {
+  app.post('/api/employees', isAuthenticated, requireHR, async (req, res) => {
     try {
       const employeeData = insertEmployeeSchema.parse(req.body);
       const employee = await storage.createEmployee(employeeData);
@@ -179,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/employees/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/employees/:id', isAuthenticated, requireHR, async (req, res) => {
     try {
       const { id } = req.params;
       const employeeData = insertEmployeeSchema.partial().parse(req.body);
@@ -194,7 +672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/employees/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/employees/:id', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       await storage.deleteEmployee(id);
@@ -327,7 +805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/leave/requests/:id/approve', isAuthenticated, async (req, res) => {
+  app.put('/api/leave/requests/:id/approve', isAuthenticated, requireManager, async (req, res) => {
     try {
       const { id } = req.params;
       const { comments } = req.body;
@@ -338,11 +816,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Leave request not found" });
       }
       
+      // Check if already processed
+      if (leaveRequest.status !== 'pending') {
+        return res.status(400).json({ message: "Leave request has already been processed" });
+      }
+      
       const employee = await storage.getEmployeeByUserId(user.id);
       if (!employee) {
         return res.status(403).json({ message: "Employee profile not found" });
       }
       
+      // Get current balance
+      const balances = await storage.getLeaveBalances(leaveRequest.employeeId, new Date().getFullYear());
+      const balance = balances.find(b => b.leaveTypeId === leaveRequest.leaveTypeId);
+      
+      if (!balance) {
+        return res.status(400).json({ message: "Leave balance not found for this employee" });
+      }
+      
+      // Check if sufficient balance
+      if (balance.remaining < leaveRequest.daysRequested) {
+        return res.status(400).json({ 
+          message: "Insufficient leave balance",
+          remaining: balance.remaining,
+          requested: leaveRequest.daysRequested
+        });
+      }
+      
+      // Update leave request and balance atomically
+      // Note: For true atomicity, implement database transactions
       const updatedRequest = await storage.updateLeaveRequest(id, {
         status: 'approved',
         approvedBy: employee.id,
@@ -350,15 +852,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         comments: comments || null,
       });
       
-      const balances = await storage.getLeaveBalances(leaveRequest.employeeId, new Date().getFullYear());
-      const balance = balances.find(b => b.leaveTypeId === leaveRequest.leaveTypeId);
-      
-      if (balance) {
-        await storage.updateLeaveBalance(balance.id, {
-          used: (balance.used || 0) + leaveRequest.daysRequested,
-          remaining: balance.remaining - leaveRequest.daysRequested,
-        });
-      }
+      await storage.updateLeaveBalance(balance.id, {
+        used: (balance.used || 0) + leaveRequest.daysRequested,
+        remaining: balance.remaining - leaveRequest.daysRequested,
+      });
       
       res.json(updatedRequest);
     } catch (error) {
@@ -367,7 +864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/leave/requests/:id/reject', isAuthenticated, async (req, res) => {
+  app.put('/api/leave/requests/:id/reject', isAuthenticated, requireManager, async (req, res) => {
     try {
       const { id } = req.params;
       const { comments } = req.body;
@@ -680,7 +1177,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/recruitment/applications', isAuthenticated, async (req, res) => {
     try {
       const applicationData = insertApplicationSchema.parse(req.body);
-      const application = await storage.createApplication(applicationData);
+      const sanitizedData = {
+        ...applicationData,
+        expectedSalary: applicationData.expectedSalary === "" ? null : applicationData.expectedSalary,
+        rating: applicationData.rating === "" ? null : applicationData.rating,
+        yearsOfExperience: applicationData.yearsOfExperience === "" ? null : applicationData.yearsOfExperience,
+      };
+      const application = await storage.createApplication(sanitizedData as any);
       res.status(201).json(application);
     } catch (error) {
       if (error instanceof z.ZodError) {

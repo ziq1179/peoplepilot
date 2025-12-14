@@ -12,6 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import Employees from "@/pages/Employees";
 import EmployeeForm from "@/pages/EmployeeForm";
 import Departments from "@/pages/Departments";
+import Positions from "@/pages/Positions";
 import Leave from "@/pages/Leave";
 import LeaveTypes from "@/pages/LeaveTypes";
 import LeaveRequest from "@/pages/LeaveRequest";
@@ -28,6 +29,9 @@ import MyProfile from "@/pages/MyProfile";
 import JobPostings from "@/pages/JobPostings";
 import Applications from "@/pages/Applications";
 import Interviews from "@/pages/Interviews";
+import UserManagement from "@/pages/UserManagement";
+import Permissions from "@/pages/Permissions";
+import CompanyConfig from "@/pages/CompanyConfig";
 
 function Router() {
   return (
@@ -38,6 +42,7 @@ function Router() {
       <ProtectedRoute path="/employees/new" component={() => <Layout><EmployeeForm /></Layout>} />
       <ProtectedRoute path="/employees/:id/edit" component={() => <Layout><EmployeeForm /></Layout>} />
       <ProtectedRoute path="/departments" component={() => <Layout><Departments /></Layout>} />
+      <ProtectedRoute path="/positions" component={() => <Layout><Positions /></Layout>} />
       <ProtectedRoute path="/leave" component={() => <Layout><Leave /></Layout>} />
       <ProtectedRoute path="/leave/types" component={() => <Layout><LeaveTypes /></Layout>} />
       <ProtectedRoute path="/leave/request" component={() => <Layout><LeaveRequest /></Layout>} />
@@ -56,6 +61,9 @@ function Router() {
       <ProtectedRoute path="/recruitment/jobs" component={() => <Layout><JobPostings /></Layout>} />
       <ProtectedRoute path="/recruitment/applications" component={() => <Layout><Applications /></Layout>} />
       <ProtectedRoute path="/recruitment/interviews" component={() => <Layout><Interviews /></Layout>} />
+      <ProtectedRoute path="/admin/users" component={() => <Layout><UserManagement /></Layout>} />
+      <ProtectedRoute path="/admin/permissions" component={() => <Layout><Permissions /></Layout>} />
+      <ProtectedRoute path="/admin/company-config" component={() => <Layout><CompanyConfig /></Layout>} />
       <Route component={NotFound} />
     </Switch>
   );

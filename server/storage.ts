@@ -1,6 +1,9 @@
 import {
   users,
+  company,
   departments,
+  teams,
+  subTeams,
   positions,
   employees,
   leaveTypes,
@@ -15,8 +18,14 @@ import {
   interviews,
   type User,
   type UpsertUser,
+  type Company,
+  type InsertCompany,
   type Department,
   type InsertDepartment,
+  type Team,
+  type InsertTeam,
+  type SubTeam,
+  type InsertSubTeam,
   type Position,
   type InsertPosition,
   type Employee,
@@ -50,16 +59,25 @@ import { pool } from "./db";
 
 const PostgresSessionStore = connectPg(session);
 
+
 // Interface for storage operations
 export interface IStorage {
   // User operations
+  getUsers(): Promise<User[]>;
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: UpsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<Omit<UpsertUser, 'password'>>): Promise<User>;
+  updateUserPassword(id: string, hashedPassword: string): Promise<User>;
+  deleteUser(id: string): Promise<void>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   // Session store
   sessionStore: session.Store;
+  
+  // Company operations
+  getCompany(): Promise<Company | null>;
+  upsertCompany(company: InsertCompany): Promise<Company>;
   
   // Department operations
   getDepartments(): Promise<Department[]>;
@@ -67,6 +85,20 @@ export interface IStorage {
   createDepartment(department: InsertDepartment): Promise<Department>;
   updateDepartment(id: string, department: Partial<InsertDepartment>): Promise<Department>;
   deleteDepartment(id: string): Promise<void>;
+  
+  // Team operations
+  getTeams(filters?: { departmentId?: string }): Promise<Team[]>;
+  getTeam(id: string): Promise<Team | undefined>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  updateTeam(id: string, team: Partial<InsertTeam>): Promise<Team>;
+  deleteTeam(id: string): Promise<void>;
+  
+  // Sub-team operations
+  getSubTeams(filters?: { teamId?: string }): Promise<SubTeam[]>;
+  getSubTeam(id: string): Promise<SubTeam | undefined>;
+  createSubTeam(subTeam: InsertSubTeam): Promise<SubTeam>;
+  updateSubTeam(id: string, subTeam: Partial<InsertSubTeam>): Promise<SubTeam>;
+  deleteSubTeam(id: string): Promise<void>;
   
   // Position operations
   getPositions(): Promise<Position[]>;
@@ -204,6 +236,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // User operations
+  async getUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.createdAt);
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -219,6 +255,40 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: string, userData: Partial<Omit<UpsertUser, 'password'>>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        ...userData,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return user;
+  }
+
+  async updateUserPassword(id: string, hashedPassword: string): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({
+        password: hashedPassword,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id))
+      .returning();
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return user;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
@@ -232,6 +302,27 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  // Company operations
+  async getCompany(): Promise<Company | null> {
+    const [companyData] = await db.select().from(company).limit(1);
+    return companyData || null;
+  }
+
+  async upsertCompany(companyData: InsertCompany): Promise<Company> {
+    const existing = await this.getCompany();
+    if (existing) {
+      const [updated] = await db
+        .update(company)
+        .set({ ...companyData, updatedAt: new Date() })
+        .where(eq(company.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(company).values(companyData).returning();
+      return created;
+    }
   }
 
   // Department operations
@@ -260,6 +351,74 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDepartment(id: string): Promise<void> {
     await db.delete(departments).where(eq(departments.id, id));
+  }
+
+  // Team operations
+  async getTeams(filters?: { departmentId?: string }): Promise<Team[]> {
+    if (filters?.departmentId) {
+      return await db.select().from(teams).where(eq(teams.departmentId, filters.departmentId)).orderBy(teams.name);
+    }
+    return await db.select().from(teams).orderBy(teams.name);
+  }
+
+  async getTeam(id: string): Promise<Team | undefined> {
+    const [team] = await db.select().from(teams).where(eq(teams.id, id));
+    return team;
+  }
+
+  async createTeam(teamData: InsertTeam): Promise<Team> {
+    const [newTeam] = await db.insert(teams).values(teamData).returning();
+    return newTeam;
+  }
+
+  async updateTeam(id: string, teamData: Partial<InsertTeam>): Promise<Team> {
+    const [updatedTeam] = await db
+      .update(teams)
+      .set({ ...teamData, updatedAt: new Date() })
+      .where(eq(teams.id, id))
+      .returning();
+    if (!updatedTeam) {
+      throw new Error('Team not found');
+    }
+    return updatedTeam;
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  // Sub-team operations
+  async getSubTeams(filters?: { teamId?: string }): Promise<SubTeam[]> {
+    if (filters?.teamId) {
+      return await db.select().from(subTeams).where(eq(subTeams.teamId, filters.teamId)).orderBy(subTeams.name);
+    }
+    return await db.select().from(subTeams).orderBy(subTeams.name);
+  }
+
+  async getSubTeam(id: string): Promise<SubTeam | undefined> {
+    const [subTeam] = await db.select().from(subTeams).where(eq(subTeams.id, id));
+    return subTeam;
+  }
+
+  async createSubTeam(subTeamData: InsertSubTeam): Promise<SubTeam> {
+    const [newSubTeam] = await db.insert(subTeams).values(subTeamData).returning();
+    return newSubTeam;
+  }
+
+  async updateSubTeam(id: string, subTeamData: Partial<InsertSubTeam>): Promise<SubTeam> {
+    const [updatedSubTeam] = await db
+      .update(subTeams)
+      .set({ ...subTeamData, updatedAt: new Date() })
+      .where(eq(subTeams.id, id))
+      .returning();
+    if (!updatedSubTeam) {
+      throw new Error('Sub-team not found');
+    }
+    return updatedSubTeam;
+  }
+
+  async deleteSubTeam(id: string): Promise<void> {
+    await db.delete(subTeams).where(eq(subTeams.id, id));
   }
 
   // Position operations

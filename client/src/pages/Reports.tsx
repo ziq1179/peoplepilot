@@ -24,10 +24,10 @@ import type { Department } from "@shared/schema";
 
 export default function Reports() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [reportType, setReportType] = useState("");
+  const [reportType, setReportType] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("all");
   const { toast } = useToast();
 
   const { data: departments } = useQuery({
@@ -106,7 +106,7 @@ export default function Reports() {
   ];
 
   const handleGenerateReport = () => {
-    if (!reportType) {
+    if (!reportType || reportType === 'all') {
       toast({
         title: "Error",
         description: "Please select a report type.",
@@ -243,7 +243,7 @@ export default function Reports() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">All Departments</SelectItem>
+                          <SelectItem value="all">All Departments</SelectItem>
                           {departments?.map((dept: Department) => (
                             <SelectItem key={dept.id} value={dept.id}>
                               {dept.name}

@@ -1,22 +1,21 @@
 import { sql } from 'drizzle-orm';
 import { 
-  pgTable, 
-  text, 
-  varchar, 
-  integer, 
-  decimal, 
-  timestamp, 
-  boolean, 
+  pgTable,
+  text,
+  varchar,
+  integer,
+  decimal,
+  timestamp,
+  boolean,
   date,
   jsonb,
   index,
-  pgEnum
 } from "drizzle-orm/pg-core";
 import { relations } from 'drizzle-orm';
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table for Replit Auth
+// Session storage table
 export const sessions = pgTable(
   "sessions",
   {
@@ -41,6 +40,26 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Company
+export const company = pgTable("company", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  legalName: varchar("legal_name"),
+  registrationNumber: varchar("registration_number"),
+  taxId: varchar("tax_id"),
+  address: text("address"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  country: varchar("country"),
+  phone: varchar("phone"),
+  email: varchar("email"),
+  website: varchar("website"),
+  logoUrl: varchar("logo_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Departments
 export const departments = pgTable("departments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -49,6 +68,28 @@ export const departments = pgTable("departments", {
   managerId: varchar("manager_id").references(() => employees.id),
   budget: decimal("budget", { precision: 12, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Teams
+export const teams = pgTable("teams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  departmentId: varchar("department_id").references(() => departments.id),
+  teamLeadId: varchar("team_lead_id").references(() => employees.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Sub Teams
+export const subTeams = pgTable("sub_teams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  teamId: varchar("team_id").references(() => teams.id).notNull(),
+  subTeamLeadId: varchar("sub_team_lead_id").references(() => employees.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Positions
@@ -241,7 +282,7 @@ export const applications = pgTable("applications", {
   jobPostingId: varchar("job_posting_id").references(() => jobPostings.id).notNull(),
   candidateName: varchar("candidate_name").notNull(),
   candidateEmail: varchar("candidate_email").notNull(),
-  candidatePhone: varchar("candidate_phone"),
+  candidatePhone: varchar("candidate_phone", { length: 50 }),
   resumeUrl: varchar("resume_url"),
   coverLetter: text("cover_letter"),
   linkedinUrl: varchar("linkedin_url"),
@@ -289,8 +330,32 @@ export const interviews = pgTable("interviews", {
 export const departmentRelations = relations(departments, ({ many, one }) => ({
   employees: many(employees),
   positions: many(positions),
+  teams: many(teams),
   manager: one(employees, {
     fields: [departments.managerId],
+    references: [employees.id],
+  }),
+}));
+
+export const teamRelations = relations(teams, ({ many, one }) => ({
+  department: one(departments, {
+    fields: [teams.departmentId],
+    references: [departments.id],
+  }),
+  teamLead: one(employees, {
+    fields: [teams.teamLeadId],
+    references: [employees.id],
+  }),
+  subTeams: many(subTeams),
+}));
+
+export const subTeamRelations = relations(subTeams, ({ one }) => ({
+  team: one(teams, {
+    fields: [subTeams.teamId],
+    references: [teams.id],
+  }),
+  subTeamLead: one(employees, {
+    fields: [subTeams.subTeamLeadId],
     references: [employees.id],
   }),
 }));
@@ -467,6 +532,24 @@ export const insertPositionSchema = createInsertSchema(positions).omit({
   createdAt: true,
 });
 
+export const insertCompanySchema = createInsertSchema(company).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTeamSchema = createInsertSchema(teams).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSubTeamSchema = createInsertSchema(subTeams).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertEmployeeSchema = createInsertSchema(employees).omit({
   id: true,
   createdAt: true,
@@ -533,9 +616,15 @@ export const insertInterviewSchema = createInsertSchema(interviews).omit({
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+export type Company = typeof company.$inferSelect;
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Department = typeof departments.$inferSelect;
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type Position = typeof positions.$inferSelect;
+export type Team = typeof teams.$inferSelect;
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type SubTeam = typeof subTeams.$inferSelect;
+export type InsertSubTeam = z.infer<typeof insertSubTeamSchema>;
 export type InsertPosition = z.infer<typeof insertPositionSchema>;
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;

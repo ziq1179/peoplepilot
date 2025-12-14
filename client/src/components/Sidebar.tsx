@@ -18,9 +18,18 @@ import {
   Target,
   Briefcase,
   UserPlus,
-  Video
+  Video,
+  Shield,
+  KeyRound,
+  ChevronDown,
+  ChevronRight,
+  LayoutDashboard,
+  Building
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useState, useEffect } from "react";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -28,17 +37,26 @@ interface SidebarProps {
   isMobile: boolean;
 }
 
-const navigation = [
+// Navigation sections with collapsible groups
+const mainNavigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3, testId: 'link-dashboard' },
   { name: 'Employee Management', href: '/employees', icon: Users, testId: 'link-employees' },
   { name: 'Departments', href: '/departments', icon: Building2, testId: 'link-departments' },
+  { name: 'Positions', href: '/positions', icon: Briefcase, testId: 'link-positions' },
+];
+
+const leaveNavigation = [
   { name: 'Request Leave', href: '/leave/request', icon: Calendar, testId: 'link-leave-request' },
   { name: 'Leave Approvals', href: '/leave/approvals', icon: CheckCircle, testId: 'link-leave-approvals' },
+];
+
+const financialNavigation = [
   { name: 'Payroll', href: '/payroll', icon: DollarSign, testId: 'link-payroll' },
+];
+
+const performanceNavigation = [
   { name: 'Performance', href: '/performance', icon: TrendingUp, testId: 'link-performance' },
   { name: 'Goals', href: '/performance/goals', icon: Target, testId: 'link-goals' },
-  { name: 'Reports & Analytics', href: '/reports', icon: FileText, testId: 'link-reports' },
-  { name: 'Document Management', href: '/documents', icon: FolderOpen, testId: 'link-documents' },
 ];
 
 const recruitmentNavigation = [
@@ -47,8 +65,19 @@ const recruitmentNavigation = [
   { name: 'Interviews', href: '/recruitment/interviews', icon: Video, testId: 'link-interviews' },
 ];
 
+const reportsNavigation = [
+  { name: 'Reports & Analytics', href: '/reports', icon: FileText, testId: 'link-reports' },
+  { name: 'Document Management', href: '/documents', icon: FolderOpen, testId: 'link-documents' },
+];
+
 const settingsNavigation = [
   { name: 'Leave Types', href: '/leave/types', icon: Settings, testId: 'link-leave-types' },
+];
+
+const adminNavigation = [
+  { name: 'Company Configuration', href: '/admin/company-config', icon: Building, testId: 'link-company-config' },
+  { name: 'User Management', href: '/admin/users', icon: Shield, testId: 'link-user-management' },
+  { name: 'Role Permissions', href: '/admin/permissions', icon: KeyRound, testId: 'link-permissions' },
 ];
 
 const selfServiceNavigation = [
@@ -59,8 +88,81 @@ const selfServiceNavigation = [
   { name: 'Self-Assessment', href: '/performance/self-assessment', icon: FileText, testId: 'link-self-assessment' },
 ];
 
+interface NavSectionProps {
+  title: string;
+  items: Array<{ name: string; href: string; icon: any; testId: string }>;
+  defaultOpen?: boolean;
+  location: string;
+  isMobile: boolean;
+  onClose?: () => void;
+}
+
+function NavSection({ title, items, defaultOpen = true, location, isMobile, onClose }: NavSectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const hasActiveItem = items.some(item => location === item.href);
+
+  // Auto-expand if any item in this section is active
+  useEffect(() => {
+    if (hasActiveItem && !isOpen) {
+      setIsOpen(true);
+    }
+  }, [hasActiveItem, isOpen]);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="w-full">
+        <div className={cn(
+          "flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors",
+          "text-xs font-semibold text-muted-foreground uppercase tracking-wider",
+          "hover:text-foreground hover:bg-muted/50 cursor-pointer"
+        )}>
+          <span>{title}</span>
+          {isOpen ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-1 mt-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = location === item.href;
+          
+          return (
+            <Link key={item.name} href={item.href}>
+              <div
+                className={cn(
+                  "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ml-2",
+                  isActive 
+                    ? "text-primary bg-primary/10 border border-primary/20" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+                onClick={isMobile ? onClose : undefined}
+                data-testid={item.testId}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{item.name}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isHR = user?.role === 'hr' || isAdmin;
+  const isManager = user?.role === 'manager' || isHR;
+  
+  // Debug: Log user role in development
+  if (process.env.NODE_ENV === 'development' && user) {
+    console.log('[Sidebar] Current user role:', user.role, 'isAdmin:', isAdmin);
+  }
 
   return (
     <>
@@ -72,7 +174,7 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
         )}
         data-testid="sidebar"
       >
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-4 overflow-y-auto h-full">
           {isMobile && (
             <div className="flex justify-end mb-4">
               <Button 
@@ -86,120 +188,109 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
             </div>
           )}
 
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.href;
-            
-            return (
-              <Link key={item.name} href={item.href}>
-                <a 
-                  className={cn(
-                    "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors",
-                    isActive 
-                      ? "text-primary bg-primary/10 border border-primary/20" 
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  )}
-                  onClick={isMobile ? onClose : undefined}
-                  data-testid={item.testId}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.name}</span>
-                </a>
-              </Link>
-            );
-          })}
-          
-          {/* Recruitment Section */}
-          <div className="pt-4 border-t border-border">
-            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Recruitment
-            </p>
-            
-            {recruitmentNavigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              
-              return (
-                <Link key={item.name} href={item.href}>
-                  <a 
-                    className={cn(
-                      "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors",
-                      isActive 
-                        ? "text-primary bg-primary/10 border border-primary/20" 
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    )}
-                    onClick={isMobile ? onClose : undefined}
-                    data-testid={item.testId}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.name}</span>
-                  </a>
-                </Link>
-              );
-            })}
-          </div>
-          
-          {/* Settings Section */}
-          <div className="pt-4 border-t border-border">
-            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Settings
-            </p>
-            
-            {settingsNavigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              
-              return (
-                <Link key={item.name} href={item.href}>
-                  <a 
-                    className={cn(
-                      "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors",
-                      isActive 
-                        ? "text-primary bg-primary/10 border border-primary/20" 
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    )}
-                    onClick={isMobile ? onClose : undefined}
-                    data-testid={item.testId}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.name}</span>
-                  </a>
-                </Link>
-              );
-            })}
-          </div>
-          
-          {/* Self Service Section */}
-          <div className="pt-4 border-t border-border">
-            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Employee Self-Service
-            </p>
-            
-            {selfServiceNavigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              
-              return (
-                <Link key={item.name} href={item.href}>
-                  <a 
-                    className={cn(
-                      "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors",
-                      isActive 
-                        ? "text-primary bg-primary/10 border border-primary/20" 
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    )}
-                    onClick={isMobile ? onClose : undefined}
-                    data-testid={item.testId}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.name}</span>
-                  </a>
-                </Link>
-              );
-            })}
-          </div>
+          {/* Main Navigation */}
+          <NavSection
+            title="Main"
+            items={mainNavigation}
+            defaultOpen={true}
+            location={location}
+            isMobile={isMobile}
+            onClose={onClose}
+          />
 
-          {/* Logout Section */}
+          {/* Leave Management */}
+          {(isManager || isHR) && (
+            <NavSection
+              title="Leave Management"
+              items={leaveNavigation}
+              defaultOpen={false}
+              location={location}
+              isMobile={isMobile}
+              onClose={onClose}
+            />
+          )}
+
+          {/* Financial */}
+          {isHR && (
+            <NavSection
+              title="Financial"
+              items={financialNavigation}
+              defaultOpen={false}
+              location={location}
+              isMobile={isMobile}
+              onClose={onClose}
+            />
+          )}
+
+          {/* Performance */}
+          <NavSection
+            title="Performance"
+            items={performanceNavigation}
+            defaultOpen={false}
+            location={location}
+            isMobile={isMobile}
+            onClose={onClose}
+          />
+
+          {/* Recruitment */}
+          {isHR && (
+            <NavSection
+              title="Recruitment"
+              items={recruitmentNavigation}
+              defaultOpen={false}
+              location={location}
+              isMobile={isMobile}
+              onClose={onClose}
+            />
+          )}
+
+          {/* Reports & Documents */}
+          {isHR && (
+            <NavSection
+              title="Reports & Documents"
+              items={reportsNavigation}
+              defaultOpen={false}
+              location={location}
+              isMobile={isMobile}
+              onClose={onClose}
+            />
+          )}
+
+          {/* Administration */}
+          {isAdmin && (
+            <NavSection
+              title="Administration"
+              items={adminNavigation}
+              defaultOpen={false}
+              location={location}
+              isMobile={isMobile}
+              onClose={onClose}
+            />
+          )}
+
+          {/* Settings */}
+          {isHR && (
+            <NavSection
+              title="Settings"
+              items={settingsNavigation}
+              defaultOpen={false}
+              location={location}
+              isMobile={isMobile}
+              onClose={onClose}
+            />
+          )}
+
+          {/* Employee Self-Service */}
+          <NavSection
+            title="My Account"
+            items={selfServiceNavigation}
+            defaultOpen={false}
+            location={location}
+            isMobile={isMobile}
+            onClose={onClose}
+          />
+
+          {/* Logout */}
           <div className="pt-4 border-t border-border">
             <a 
               href="/api/logout"

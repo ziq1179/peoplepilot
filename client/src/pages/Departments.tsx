@@ -158,10 +158,18 @@ export default function Departments() {
   };
 
   const onSubmit = (data: any) => {
+    // Convert empty strings to null for optional fields
+    const cleanedData = {
+      ...data,
+      managerId: data.managerId && data.managerId.trim() !== '' ? data.managerId : null,
+      description: data.description && data.description.trim() !== '' ? data.description : null,
+      budget: data.budget && data.budget.trim() !== '' ? data.budget : null,
+    };
+    
     if (editingDepartment) {
-      updateMutation.mutate({ id: editingDepartment.id, data });
+      updateMutation.mutate({ id: editingDepartment.id, data: cleanedData });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(cleanedData);
     }
   };
 
