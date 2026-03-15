@@ -24,7 +24,8 @@ import {
   ChevronDown,
   ChevronRight,
   LayoutDashboard,
-  Building
+  Building,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,6 +39,12 @@ interface SidebarProps {
 }
 
 // Navigation sections with collapsible groups
+const attendanceNavigation = [
+  { name: 'Clock In/Out', href: '/attendance', icon: Clock, testId: 'link-attendance' },
+  { name: 'Timesheets', href: '/timesheets', icon: FileText, testId: 'link-timesheets' },
+  { name: 'Calendar View', href: '/attendance/calendar', icon: Calendar, testId: 'link-attendance-calendar' },
+];
+
 const mainNavigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3, testId: 'link-dashboard' },
   { name: 'Employee Management', href: '/employees', icon: Users, testId: 'link-employees' },
@@ -198,6 +205,16 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
             onClose={onClose}
           />
 
+          {/* Attendance */}
+          <NavSection
+            title="Attendance"
+            items={attendanceNavigation}
+            defaultOpen={false}
+            location={location}
+            isMobile={isMobile}
+            onClose={onClose}
+          />
+
           {/* Leave Management */}
           {(isManager || isHR) && (
             <NavSection
@@ -248,7 +265,10 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
           {isHR && (
             <NavSection
               title="Reports & Documents"
-              items={reportsNavigation}
+              items={[
+                ...reportsNavigation,
+                { name: 'Attendance Reports', href: '/attendance/reports', icon: BarChart3, testId: 'link-attendance-reports' },
+              ]}
               defaultOpen={false}
               location={location}
               isMobile={isMobile}

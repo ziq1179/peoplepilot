@@ -32,6 +32,10 @@ import Interviews from "@/pages/Interviews";
 import UserManagement from "@/pages/UserManagement";
 import Permissions from "@/pages/Permissions";
 import CompanyConfig from "@/pages/CompanyConfig";
+import Attendance from "@/pages/Attendance";
+import Timesheets from "@/pages/Timesheets";
+import AttendanceReports from "@/pages/AttendanceReports";
+import AttendanceCalendar from "@/pages/AttendanceCalendar";
 
 function Router() {
   return (
@@ -61,6 +65,10 @@ function Router() {
       <ProtectedRoute path="/recruitment/jobs" component={() => <Layout><JobPostings /></Layout>} />
       <ProtectedRoute path="/recruitment/applications" component={() => <Layout><Applications /></Layout>} />
       <ProtectedRoute path="/recruitment/interviews" component={() => <Layout><Interviews /></Layout>} />
+      <ProtectedRoute path="/attendance" component={() => <Layout><Attendance /></Layout>} />
+      <ProtectedRoute path="/timesheets" component={() => <Layout><Timesheets /></Layout>} />
+      <ProtectedRoute path="/attendance/reports" component={() => <Layout><AttendanceReports /></Layout>} />
+      <ProtectedRoute path="/attendance/calendar" component={() => <Layout><AttendanceCalendar /></Layout>} />
       <ProtectedRoute path="/admin/users" component={() => <Layout><UserManagement /></Layout>} />
       <ProtectedRoute path="/admin/permissions" component={() => <Layout><Permissions /></Layout>} />
       <ProtectedRoute path="/admin/company-config" component={() => <Layout><CompanyConfig /></Layout>} />

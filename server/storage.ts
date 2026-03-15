@@ -6,6 +6,13 @@ import {
   subTeams,
   positions,
   employees,
+  attendanceRecords,
+  timesheets,
+  onboardingTemplates,
+  onboardingChecklistItems,
+  employeeOnboarding,
+  onboardingTasks,
+  onboardingDocuments,
   leaveTypes,
   leaveRequests,
   leaveBalances,
@@ -30,6 +37,20 @@ import {
   type InsertPosition,
   type Employee,
   type InsertEmployee,
+  type AttendanceRecord,
+  type InsertAttendanceRecord,
+  type Timesheet,
+  type InsertTimesheet,
+  type OnboardingTemplate,
+  type InsertOnboardingTemplate,
+  type OnboardingChecklistItem,
+  type InsertOnboardingChecklistItem,
+  type EmployeeOnboarding,
+  type InsertEmployeeOnboarding,
+  type OnboardingTask,
+  type InsertOnboardingTask,
+  type OnboardingDocument,
+  type InsertOnboardingDocument,
   type LeaveType,
   type InsertLeaveType,
   type LeaveRequest,
@@ -119,6 +140,34 @@ export interface IStorage {
   createEmployee(employee: InsertEmployee): Promise<Employee>;
   updateEmployee(id: string, employee: Partial<InsertEmployee>): Promise<Employee>;
   deleteEmployee(id: string): Promise<void>;
+  
+  // Attendance operations
+  getAttendanceRecords(filters?: {
+    employeeId?: string;
+    startDate?: string;
+    endDate?: string;
+    date?: string;
+  }): Promise<AttendanceRecord[]>;
+  getAttendanceRecord(id: string): Promise<AttendanceRecord | undefined>;
+  getTodayAttendanceRecord(employeeId: string): Promise<AttendanceRecord | undefined>;
+  createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
+  updateAttendanceRecord(id: string, record: Partial<InsertAttendanceRecord>): Promise<AttendanceRecord>;
+  clockIn(employeeId: string, location?: string): Promise<AttendanceRecord>;
+  clockOut(employeeId: string): Promise<AttendanceRecord>;
+  
+  // Timesheet operations
+  getTimesheets(filters?: {
+    employeeId?: string;
+    weekStartDate?: string;
+    status?: string;
+  }): Promise<Timesheet[]>;
+  getTimesheet(id: string): Promise<Timesheet | undefined>;
+  getTimesheetByWeek(employeeId: string, weekStartDate: string): Promise<Timesheet | undefined>;
+  createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet>;
+  updateTimesheet(id: string, timesheet: Partial<InsertTimesheet>): Promise<Timesheet>;
+  submitTimesheet(id: string): Promise<Timesheet>;
+  approveTimesheet(id: string, approvedBy: string): Promise<Timesheet>;
+  rejectTimesheet(id: string, approvedBy: string, reason: string): Promise<Timesheet>;
   
   // Leave type operations
   getLeaveTypes(): Promise<LeaveType[]>;
@@ -213,6 +262,51 @@ export interface IStorage {
   createInterview(interview: InsertInterview): Promise<Interview>;
   updateInterview(id: string, interview: Partial<InsertInterview>): Promise<Interview>;
   deleteInterview(id: string): Promise<void>;
+  
+  // Onboarding Template operations
+  getOnboardingTemplates(filters?: {
+    departmentId?: string;
+    positionId?: string;
+    isDefault?: boolean;
+  }): Promise<OnboardingTemplate[]>;
+  getOnboardingTemplate(id: string): Promise<OnboardingTemplate | undefined>;
+  createOnboardingTemplate(template: InsertOnboardingTemplate): Promise<OnboardingTemplate>;
+  updateOnboardingTemplate(id: string, template: Partial<InsertOnboardingTemplate>): Promise<OnboardingTemplate>;
+  deleteOnboardingTemplate(id: string): Promise<void>;
+  
+  // Onboarding Checklist Item operations
+  getOnboardingChecklistItems(templateId: string): Promise<OnboardingChecklistItem[]>;
+  createOnboardingChecklistItem(item: InsertOnboardingChecklistItem): Promise<OnboardingChecklistItem>;
+  updateOnboardingChecklistItem(id: string, item: Partial<InsertOnboardingChecklistItem>): Promise<OnboardingChecklistItem>;
+  deleteOnboardingChecklistItem(id: string): Promise<void>;
+  
+  // Employee Onboarding operations
+  getEmployeeOnboardings(filters?: {
+    employeeId?: string;
+    status?: string;
+    assignedTo?: string;
+  }): Promise<EmployeeOnboarding[]>;
+  getEmployeeOnboarding(id: string): Promise<EmployeeOnboarding | undefined>;
+  getEmployeeOnboardingByEmployee(employeeId: string): Promise<EmployeeOnboarding | undefined>;
+  createEmployeeOnboarding(onboarding: InsertEmployeeOnboarding): Promise<EmployeeOnboarding>;
+  updateEmployeeOnboarding(id: string, onboarding: Partial<InsertEmployeeOnboarding>): Promise<EmployeeOnboarding>;
+  startEmployeeOnboarding(employeeId: string, templateId: string, assignedTo?: string): Promise<EmployeeOnboarding>;
+  
+  // Onboarding Task operations
+  getOnboardingTasks(onboardingId: string): Promise<OnboardingTask[]>;
+  getOnboardingTask(id: string): Promise<OnboardingTask | undefined>;
+  createOnboardingTask(task: InsertOnboardingTask): Promise<OnboardingTask>;
+  updateOnboardingTask(id: string, task: Partial<InsertOnboardingTask>): Promise<OnboardingTask>;
+  completeOnboardingTask(id: string, completedBy: string): Promise<OnboardingTask>;
+  deleteOnboardingTask(id: string): Promise<void>;
+  
+  // Onboarding Document operations
+  getOnboardingDocuments(onboardingId: string): Promise<OnboardingDocument[]>;
+  getOnboardingDocument(id: string): Promise<OnboardingDocument | undefined>;
+  createOnboardingDocument(document: InsertOnboardingDocument): Promise<OnboardingDocument>;
+  updateOnboardingDocument(id: string, document: Partial<InsertOnboardingDocument>): Promise<OnboardingDocument>;
+  verifyOnboardingDocument(id: string, verifiedBy: string): Promise<OnboardingDocument>;
+  deleteOnboardingDocument(id: string): Promise<void>;
   
   // Dashboard statistics
   getDashboardStats(): Promise<{
@@ -523,6 +617,294 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEmployee(id: string): Promise<void> {
     await db.delete(employees).where(eq(employees.id, id));
+  }
+
+  // Attendance operations
+  async getAttendanceRecords(filters?: {
+    employeeId?: string;
+    startDate?: string;
+    endDate?: string;
+    date?: string;
+  }): Promise<AttendanceRecord[]> {
+    let query = db.select().from(attendanceRecords);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.employeeId) {
+        conditions.push(eq(attendanceRecords.employeeId, filters.employeeId));
+      }
+      
+      if (filters.date) {
+        conditions.push(eq(attendanceRecords.date, filters.date));
+      }
+      
+      if (filters.startDate) {
+        conditions.push(gte(attendanceRecords.date, filters.startDate));
+      }
+      
+      if (filters.endDate) {
+        conditions.push(lte(attendanceRecords.date, filters.endDate));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(attendanceRecords.date), desc(attendanceRecords.clockIn));
+  }
+
+  async getAttendanceRecord(id: string): Promise<AttendanceRecord | undefined> {
+    const [record] = await db.select().from(attendanceRecords).where(eq(attendanceRecords.id, id));
+    return record;
+  }
+
+  async getTodayAttendanceRecord(employeeId: string): Promise<AttendanceRecord | undefined> {
+    const today = new Date().toISOString().split('T')[0];
+    const [record] = await db
+      .select()
+      .from(attendanceRecords)
+      .where(and(
+        eq(attendanceRecords.employeeId, employeeId),
+        eq(attendanceRecords.date, today)
+      ));
+    return record;
+  }
+
+  async createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord> {
+    const [newRecord] = await db.insert(attendanceRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async updateAttendanceRecord(id: string, record: Partial<InsertAttendanceRecord>): Promise<AttendanceRecord> {
+    const [updatedRecord] = await db
+      .update(attendanceRecords)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(attendanceRecords.id, id))
+      .returning();
+    if (!updatedRecord) {
+      throw new Error('Attendance record not found');
+    }
+    return updatedRecord;
+  }
+
+  async clockIn(employeeId: string, location?: string): Promise<AttendanceRecord> {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    
+    // Check if record exists for today
+    const existing = await this.getTodayAttendanceRecord(employeeId);
+    
+    if (existing) {
+      if (existing.clockIn) {
+        throw new Error('Already clocked in today');
+      }
+      // Update existing record
+      return await this.updateAttendanceRecord(existing.id, {
+        clockIn: now,
+        location: location || existing.location || null,
+        status: 'present',
+      });
+    } else {
+      // Create new record
+      return await this.createAttendanceRecord({
+        employeeId,
+        date: today,
+        clockIn: now,
+        location: location || null,
+        status: 'present',
+      });
+    }
+  }
+
+  async clockOut(employeeId: string): Promise<AttendanceRecord> {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    
+    const existing = await this.getTodayAttendanceRecord(employeeId);
+    
+    if (!existing || !existing.clockIn) {
+      throw new Error('No clock-in record found for today');
+    }
+    
+    if (existing.clockOut) {
+      throw new Error('Already clocked out today');
+    }
+    
+    // Calculate total hours
+    const clockInTime = new Date(existing.clockIn);
+    const diffMs = now.getTime() - clockInTime.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const breakMinutes = existing.breakDuration || 0;
+    const totalHours = Math.max(0, diffHours - (breakMinutes / 60));
+    
+    // Determine status based on hours worked
+    let status = existing.status || 'present';
+    if (totalHours < 4) {
+      status = 'half_day';
+    } else if (totalHours < 6) {
+      status = 'half_day';
+    }
+    
+    return await this.updateAttendanceRecord(existing.id, {
+      clockOut: now,
+      totalHours: totalHours.toFixed(2),
+      status,
+    });
+  }
+
+  async updateBreakDuration(attendanceRecordId: string, breakMinutes: number): Promise<AttendanceRecord> {
+    const record = await this.getAttendanceRecord(attendanceRecordId);
+    if (!record) {
+      throw new Error('Attendance record not found');
+    }
+    
+    // Recalculate total hours if clocked out
+    let totalHours = record.totalHours ? parseFloat(record.totalHours) : null;
+    if (record.clockIn && record.clockOut) {
+      const clockInTime = new Date(record.clockIn);
+      const clockOutTime = new Date(record.clockOut);
+      const diffMs = clockOutTime.getTime() - clockInTime.getTime();
+      const diffHours = diffMs / (1000 * 60 * 60);
+      totalHours = Math.max(0, diffHours - (breakMinutes / 60));
+    }
+    
+    return await this.updateAttendanceRecord(attendanceRecordId, {
+      breakDuration: breakMinutes,
+      totalHours: totalHours ? totalHours.toFixed(2) : null,
+    });
+  }
+
+  async calculateOvertime(employeeId: string, weekStartDate: string): Promise<{ regularHours: number; overtimeHours: number }> {
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekEndDate.getDate() + 6);
+    
+    const records = await this.getAttendanceRecords({
+      employeeId,
+      startDate: weekStartDate,
+      endDate: weekEndDate.toISOString().split('T')[0],
+    });
+    
+    const totalHours = records.reduce((sum, record) => {
+      return sum + (record.totalHours ? parseFloat(record.totalHours) : 0);
+    }, 0);
+    
+    const regularHours = Math.min(totalHours, 40);
+    const overtimeHours = Math.max(0, totalHours - 40);
+    
+    return { regularHours, overtimeHours };
+  }
+
+  // Timesheet operations
+  async getTimesheets(filters?: {
+    employeeId?: string;
+    weekStartDate?: string;
+    status?: string;
+  }): Promise<Timesheet[]> {
+    let query = db.select().from(timesheets);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.employeeId) {
+        conditions.push(eq(timesheets.employeeId, filters.employeeId));
+      }
+      
+      if (filters.weekStartDate) {
+        conditions.push(eq(timesheets.weekStartDate, filters.weekStartDate));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(timesheets.status, filters.status));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(timesheets.weekStartDate));
+  }
+
+  async getTimesheet(id: string): Promise<Timesheet | undefined> {
+    const [timesheet] = await db.select().from(timesheets).where(eq(timesheets.id, id));
+    return timesheet;
+  }
+
+  async getTimesheetByWeek(employeeId: string, weekStartDate: string): Promise<Timesheet | undefined> {
+    const [timesheet] = await db
+      .select()
+      .from(timesheets)
+      .where(and(
+        eq(timesheets.employeeId, employeeId),
+        eq(timesheets.weekStartDate, weekStartDate)
+      ));
+    return timesheet;
+  }
+
+  async createTimesheet(timesheet: InsertTimesheet): Promise<Timesheet> {
+    // Calculate hours if not provided
+    if (!timesheet.totalHours || !timesheet.regularHours || !timesheet.overtimeHours) {
+      const { regularHours, overtimeHours } = await this.calculateOvertime(
+        timesheet.employeeId,
+        timesheet.weekStartDate
+      );
+      timesheet.totalHours = (regularHours + overtimeHours).toFixed(2);
+      timesheet.regularHours = regularHours.toFixed(2);
+      timesheet.overtimeHours = overtimeHours.toFixed(2);
+    }
+    
+    const [newTimesheet] = await db.insert(timesheets).values(timesheet).returning();
+    return newTimesheet;
+  }
+
+  async updateTimesheet(id: string, timesheet: Partial<InsertTimesheet>): Promise<Timesheet> {
+    // Recalculate hours if attendance data might have changed
+    const existing = await this.getTimesheet(id);
+    if (existing && (!timesheet.totalHours || !timesheet.regularHours || !timesheet.overtimeHours)) {
+      const { regularHours, overtimeHours } = await this.calculateOvertime(
+        existing.employeeId,
+        existing.weekStartDate
+      );
+      timesheet.totalHours = (regularHours + overtimeHours).toFixed(2);
+      timesheet.regularHours = regularHours.toFixed(2);
+      timesheet.overtimeHours = overtimeHours.toFixed(2);
+    }
+    
+    const [updatedTimesheet] = await db
+      .update(timesheets)
+      .set({ ...timesheet, updatedAt: new Date() })
+      .where(eq(timesheets.id, id))
+      .returning();
+    if (!updatedTimesheet) {
+      throw new Error('Timesheet not found');
+    }
+    return updatedTimesheet;
+  }
+
+  async submitTimesheet(id: string): Promise<Timesheet> {
+    return await this.updateTimesheet(id, {
+      status: 'submitted',
+      submittedAt: new Date(),
+    });
+  }
+
+  async approveTimesheet(id: string, approvedBy: string): Promise<Timesheet> {
+    return await this.updateTimesheet(id, {
+      status: 'approved',
+      approvedBy,
+      approvedAt: new Date(),
+    });
+  }
+
+  async rejectTimesheet(id: string, approvedBy: string, reason: string): Promise<Timesheet> {
+    return await this.updateTimesheet(id, {
+      status: 'rejected',
+      approvedBy,
+      approvedAt: new Date(),
+      rejectionReason: reason,
+    });
   }
 
   // Leave type operations
@@ -1014,6 +1396,289 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInterview(id: string): Promise<void> {
     await db.delete(interviews).where(eq(interviews.id, id));
+  }
+
+  // Onboarding Template operations
+  async getOnboardingTemplates(filters?: {
+    departmentId?: string;
+    positionId?: string;
+    isDefault?: boolean;
+  }): Promise<OnboardingTemplate[]> {
+    let query = db.select().from(onboardingTemplates);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.departmentId) {
+        conditions.push(eq(onboardingTemplates.departmentId, filters.departmentId));
+      }
+      
+      if (filters.positionId) {
+        conditions.push(eq(onboardingTemplates.positionId, filters.positionId));
+      }
+      
+      if (filters.isDefault !== undefined) {
+        conditions.push(eq(onboardingTemplates.isDefault, filters.isDefault));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(onboardingTemplates.name);
+  }
+
+  async getOnboardingTemplate(id: string): Promise<OnboardingTemplate | undefined> {
+    const [template] = await db.select().from(onboardingTemplates).where(eq(onboardingTemplates.id, id));
+    return template;
+  }
+
+  async createOnboardingTemplate(template: InsertOnboardingTemplate): Promise<OnboardingTemplate> {
+    const [newTemplate] = await db.insert(onboardingTemplates).values(template).returning();
+    return newTemplate;
+  }
+
+  async updateOnboardingTemplate(id: string, template: Partial<InsertOnboardingTemplate>): Promise<OnboardingTemplate> {
+    const [updatedTemplate] = await db
+      .update(onboardingTemplates)
+      .set({ ...template, updatedAt: new Date() })
+      .where(eq(onboardingTemplates.id, id))
+      .returning();
+    if (!updatedTemplate) {
+      throw new Error('Onboarding template not found');
+    }
+    return updatedTemplate;
+  }
+
+  async deleteOnboardingTemplate(id: string): Promise<void> {
+    await db.delete(onboardingTemplates).where(eq(onboardingTemplates.id, id));
+  }
+
+  // Onboarding Checklist Item operations
+  async getOnboardingChecklistItems(templateId: string): Promise<OnboardingChecklistItem[]> {
+    return await db
+      .select()
+      .from(onboardingChecklistItems)
+      .where(eq(onboardingChecklistItems.templateId, templateId))
+      .orderBy(onboardingChecklistItems.order, onboardingChecklistItems.title);
+  }
+
+  async createOnboardingChecklistItem(item: InsertOnboardingChecklistItem): Promise<OnboardingChecklistItem> {
+    const [newItem] = await db.insert(onboardingChecklistItems).values(item).returning();
+    return newItem;
+  }
+
+  async updateOnboardingChecklistItem(id: string, item: Partial<InsertOnboardingChecklistItem>): Promise<OnboardingChecklistItem> {
+    const [updatedItem] = await db
+      .update(onboardingChecklistItems)
+      .set(item)
+      .where(eq(onboardingChecklistItems.id, id))
+      .returning();
+    if (!updatedItem) {
+      throw new Error('Checklist item not found');
+    }
+    return updatedItem;
+  }
+
+  async deleteOnboardingChecklistItem(id: string): Promise<void> {
+    await db.delete(onboardingChecklistItems).where(eq(onboardingChecklistItems.id, id));
+  }
+
+  // Employee Onboarding operations
+  async getEmployeeOnboardings(filters?: {
+    employeeId?: string;
+    status?: string;
+    assignedTo?: string;
+  }): Promise<EmployeeOnboarding[]> {
+    let query = db.select().from(employeeOnboarding);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.employeeId) {
+        conditions.push(eq(employeeOnboarding.employeeId, filters.employeeId));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(employeeOnboarding.status, filters.status));
+      }
+      
+      if (filters.assignedTo) {
+        conditions.push(eq(employeeOnboarding.assignedTo, filters.assignedTo));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(desc(employeeOnboarding.startDate));
+  }
+
+  async getEmployeeOnboarding(id: string): Promise<EmployeeOnboarding | undefined> {
+    const [onboarding] = await db.select().from(employeeOnboarding).where(eq(employeeOnboarding.id, id));
+    return onboarding;
+  }
+
+  async getEmployeeOnboardingByEmployee(employeeId: string): Promise<EmployeeOnboarding | undefined> {
+    const [onboarding] = await db
+      .select()
+      .from(employeeOnboarding)
+      .where(eq(employeeOnboarding.employeeId, employeeId))
+      .orderBy(desc(employeeOnboarding.startDate))
+      .limit(1);
+    return onboarding;
+  }
+
+  async createEmployeeOnboarding(onboarding: InsertEmployeeOnboarding): Promise<EmployeeOnboarding> {
+    const [newOnboarding] = await db.insert(employeeOnboarding).values(onboarding).returning();
+    return newOnboarding;
+  }
+
+  async updateEmployeeOnboarding(id: string, onboarding: Partial<InsertEmployeeOnboarding>): Promise<EmployeeOnboarding> {
+    const [updatedOnboarding] = await db
+      .update(employeeOnboarding)
+      .set({ ...onboarding, updatedAt: new Date() })
+      .where(eq(employeeOnboarding.id, id))
+      .returning();
+    if (!updatedOnboarding) {
+      throw new Error('Employee onboarding not found');
+    }
+    return updatedOnboarding;
+  }
+
+  async startEmployeeOnboarding(employeeId: string, templateId: string, assignedTo?: string): Promise<EmployeeOnboarding> {
+    // Get template and checklist items
+    const template = await this.getOnboardingTemplate(templateId);
+    if (!template) {
+      throw new Error('Onboarding template not found');
+    }
+    
+    const checklistItems = await this.getOnboardingChecklistItems(templateId);
+    
+    // Calculate expected completion date (default 30 days)
+    const startDate = new Date();
+    const expectedCompletionDate = new Date();
+    expectedCompletionDate.setDate(expectedCompletionDate.getDate() + 30);
+    
+    // Create onboarding record
+    const onboarding = await this.createEmployeeOnboarding({
+      employeeId,
+      templateId,
+      startDate: startDate.toISOString().split('T')[0],
+      expectedCompletionDate: expectedCompletionDate.toISOString().split('T')[0],
+      assignedTo: assignedTo || null,
+      status: 'in_progress',
+    });
+    
+    // Create tasks from checklist items
+    for (const item of checklistItems) {
+      const dueDate = new Date(startDate);
+      if (item.dueDays) {
+        dueDate.setDate(dueDate.getDate() + item.dueDays);
+      }
+      
+      await this.createOnboardingTask({
+        onboardingId: onboarding.id,
+        checklistItemId: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        assignedTo: item.assignedTo || assignedTo || null,
+        dueDate: dueDate.toISOString().split('T')[0],
+        order: item.order || 0,
+        status: 'pending',
+      });
+    }
+    
+    return onboarding;
+  }
+
+  // Onboarding Task operations
+  async getOnboardingTasks(onboardingId: string): Promise<OnboardingTask[]> {
+    return await db
+      .select()
+      .from(onboardingTasks)
+      .where(eq(onboardingTasks.onboardingId, onboardingId))
+      .orderBy(onboardingTasks.order, onboardingTasks.title);
+  }
+
+  async getOnboardingTask(id: string): Promise<OnboardingTask | undefined> {
+    const [task] = await db.select().from(onboardingTasks).where(eq(onboardingTasks.id, id));
+    return task;
+  }
+
+  async createOnboardingTask(task: InsertOnboardingTask): Promise<OnboardingTask> {
+    const [newTask] = await db.insert(onboardingTasks).values(task).returning();
+    return newTask;
+  }
+
+  async updateOnboardingTask(id: string, task: Partial<InsertOnboardingTask>): Promise<OnboardingTask> {
+    const [updatedTask] = await db
+      .update(onboardingTasks)
+      .set({ ...task, updatedAt: new Date() })
+      .where(eq(onboardingTasks.id, id))
+      .returning();
+    if (!updatedTask) {
+      throw new Error('Onboarding task not found');
+    }
+    return updatedTask;
+  }
+
+  async completeOnboardingTask(id: string, completedBy: string): Promise<OnboardingTask> {
+    return await this.updateOnboardingTask(id, {
+      status: 'completed',
+      completedBy,
+      completedDate: new Date().toISOString().split('T')[0],
+    });
+  }
+
+  async deleteOnboardingTask(id: string): Promise<void> {
+    await db.delete(onboardingTasks).where(eq(onboardingTasks.id, id));
+  }
+
+  // Onboarding Document operations
+  async getOnboardingDocuments(onboardingId: string): Promise<OnboardingDocument[]> {
+    return await db
+      .select()
+      .from(onboardingDocuments)
+      .where(eq(onboardingDocuments.onboardingId, onboardingId))
+      .orderBy(desc(onboardingDocuments.uploadedAt));
+  }
+
+  async getOnboardingDocument(id: string): Promise<OnboardingDocument | undefined> {
+    const [document] = await db.select().from(onboardingDocuments).where(eq(onboardingDocuments.id, id));
+    return document;
+  }
+
+  async createOnboardingDocument(document: InsertOnboardingDocument): Promise<OnboardingDocument> {
+    const [newDocument] = await db.insert(onboardingDocuments).values(document).returning();
+    return newDocument;
+  }
+
+  async updateOnboardingDocument(id: string, document: Partial<InsertOnboardingDocument>): Promise<OnboardingDocument> {
+    const [updatedDocument] = await db
+      .update(onboardingDocuments)
+      .set(document)
+      .where(eq(onboardingDocuments.id, id))
+      .returning();
+    if (!updatedDocument) {
+      throw new Error('Onboarding document not found');
+    }
+    return updatedDocument;
+  }
+
+  async verifyOnboardingDocument(id: string, verifiedBy: string): Promise<OnboardingDocument> {
+    return await this.updateOnboardingDocument(id, {
+      status: 'verified',
+      verifiedBy,
+      verifiedAt: new Date(),
+    });
+  }
+
+  async deleteOnboardingDocument(id: string): Promise<void> {
+    await db.delete(onboardingDocuments).where(eq(onboardingDocuments.id, id));
   }
 
   // Dashboard statistics

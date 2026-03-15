@@ -1,7 +1,8 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
+  // Don't throw on 404 - it's expected when resources don't exist (e.g., user has no employee record)
+  if (!res.ok && res.status !== 404) {
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -68,6 +69,11 @@ export const getQueryFn: <T>(options: {
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      return null;
+    }
+
+    // Handle 404 gracefully - return null instead of throwing
+    if (res.status === 404) {
       return null;
     }
 

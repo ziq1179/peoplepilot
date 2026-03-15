@@ -128,6 +128,133 @@ export const employees = pgTable("employees", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Attendance Records
+export const attendanceRecords = pgTable("attendance_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").references(() => employees.id).notNull(),
+  date: date("date").notNull(),
+  clockIn: timestamp("clock_in"),
+  clockOut: timestamp("clock_out"),
+  breakDuration: integer("break_duration").default(0), // in minutes
+  totalHours: decimal("total_hours", { precision: 5, scale: 2 }),
+  status: varchar("status").notNull().default('present'), // 'present', 'absent', 'late', 'half_day', 'on_leave'
+  notes: text("notes"),
+  location: varchar("location"), // for remote/office tracking
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_attendance_employee_date").on(table.employeeId, table.date),
+  index("idx_attendance_date").on(table.date),
+]);
+
+// Timesheets
+export const timesheets = pgTable("timesheets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").references(() => employees.id).notNull(),
+  weekStartDate: date("week_start_date").notNull(),
+  weekEndDate: date("week_end_date").notNull(),
+  totalHours: decimal("total_hours", { precision: 6, scale: 2 }),
+  regularHours: decimal("regular_hours", { precision: 6, scale: 2 }),
+  overtimeHours: decimal("overtime_hours", { precision: 6, scale: 2 }),
+  status: varchar("status").notNull().default('draft'), // 'draft', 'submitted', 'approved', 'rejected'
+  submittedAt: timestamp("submitted_at"),
+  approvedBy: varchar("approved_by").references(() => employees.id),
+  approvedAt: timestamp("approved_at"),
+  rejectionReason: text("rejection_reason"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_timesheet_employee_week").on(table.employeeId, table.weekStartDate),
+]);
+
+// Onboarding Templates
+export const onboardingTemplates = pgTable("onboarding_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  departmentId: varchar("department_id").references(() => departments.id),
+  positionId: varchar("position_id").references(() => positions.id),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Onboarding Checklist Items (Template)
+export const onboardingChecklistItems = pgTable("onboarding_checklist_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: varchar("template_id").references(() => onboardingTemplates.id).notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull(), // 'document', 'task', 'training', 'setup', 'other'
+  isRequired: boolean("is_required").default(true),
+  order: integer("order").default(0),
+  assignedTo: varchar("assigned_to").references(() => employees.id), // HR, Manager, IT, etc.
+  dueDays: integer("due_days"), // Days from start date
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Employee Onboarding Records
+export const employeeOnboarding = pgTable("employee_onboarding", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").references(() => employees.id).notNull(),
+  templateId: varchar("template_id").references(() => onboardingTemplates.id),
+  startDate: date("start_date").notNull(),
+  expectedCompletionDate: date("expected_completion_date"),
+  actualCompletionDate: date("actual_completion_date"),
+  status: varchar("status").notNull().default('in_progress'), // 'not_started', 'in_progress', 'completed', 'on_hold'
+  assignedTo: varchar("assigned_to").references(() => employees.id), // HR person managing onboarding
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_onboarding_employee").on(table.employeeId),
+  index("idx_onboarding_status").on(table.status),
+]);
+
+// Onboarding Tasks (Instance)
+export const onboardingTasks = pgTable("onboarding_tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  onboardingId: varchar("onboarding_id").references(() => employeeOnboarding.id).notNull(),
+  checklistItemId: varchar("checklist_item_id").references(() => onboardingChecklistItems.id),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull(),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'in_progress', 'completed', 'skipped'
+  assignedTo: varchar("assigned_to").references(() => employees.id),
+  dueDate: date("due_date"),
+  completedDate: date("completed_date"),
+  completedBy: varchar("completed_by").references(() => employees.id),
+  notes: text("notes"),
+  order: integer("order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_onboarding_task_onboarding").on(table.onboardingId),
+  index("idx_onboarding_task_status").on(table.status),
+]);
+
+// Onboarding Documents
+export const onboardingDocuments = pgTable("onboarding_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  onboardingId: varchar("onboarding_id").references(() => employeeOnboarding.id).notNull(),
+  taskId: varchar("task_id").references(() => onboardingTasks.id),
+  documentType: varchar("document_type").notNull(), // 'contract', 'id', 'certificate', 'form', 'other'
+  fileName: varchar("file_name").notNull(),
+  fileUrl: varchar("file_url").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type"),
+  uploadedBy: varchar("uploaded_by").references(() => employees.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  verifiedBy: varchar("verified_by").references(() => employees.id),
+  verifiedAt: timestamp("verified_at"),
+  status: varchar("status").notNull().default('pending'), // 'pending', 'verified', 'rejected'
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_onboarding_doc_onboarding").on(table.onboardingId),
+]);
+
 // Leave Types
 export const leaveTypes = pgTable("leave_types", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -395,6 +522,107 @@ export const employeeRelations = relations(employees, ({ many, one }) => ({
   performanceReviews: many(performanceReviews),
   performanceGoals: many(performanceGoals),
   documents: many(documents),
+  attendanceRecords: many(attendanceRecords),
+  timesheets: many(timesheets),
+  onboarding: many(employeeOnboarding),
+}));
+
+export const onboardingTemplateRelations = relations(onboardingTemplates, ({ many, one }) => ({
+  department: one(departments, {
+    fields: [onboardingTemplates.departmentId],
+    references: [departments.id],
+  }),
+  position: one(positions, {
+    fields: [onboardingTemplates.positionId],
+    references: [positions.id],
+  }),
+  checklistItems: many(onboardingChecklistItems),
+  onboardingRecords: many(employeeOnboarding),
+}));
+
+export const onboardingChecklistItemRelations = relations(onboardingChecklistItems, ({ one }) => ({
+  template: one(onboardingTemplates, {
+    fields: [onboardingChecklistItems.templateId],
+    references: [onboardingTemplates.id],
+  }),
+  assignedToEmployee: one(employees, {
+    fields: [onboardingChecklistItems.assignedTo],
+    references: [employees.id],
+  }),
+}));
+
+export const employeeOnboardingRelations = relations(employeeOnboarding, ({ many, one }) => ({
+  employee: one(employees, {
+    fields: [employeeOnboarding.employeeId],
+    references: [employees.id],
+  }),
+  template: one(onboardingTemplates, {
+    fields: [employeeOnboarding.templateId],
+    references: [onboardingTemplates.id],
+  }),
+  assignedToEmployee: one(employees, {
+    fields: [employeeOnboarding.assignedTo],
+    references: [employees.id],
+  }),
+  tasks: many(onboardingTasks),
+  documents: many(onboardingDocuments),
+}));
+
+export const onboardingTaskRelations = relations(onboardingTasks, ({ one, many }) => ({
+  onboarding: one(employeeOnboarding, {
+    fields: [onboardingTasks.onboardingId],
+    references: [employeeOnboarding.id],
+  }),
+  checklistItem: one(onboardingChecklistItems, {
+    fields: [onboardingTasks.checklistItemId],
+    references: [onboardingChecklistItems.id],
+  }),
+  assignedToEmployee: one(employees, {
+    fields: [onboardingTasks.assignedTo],
+    references: [employees.id],
+  }),
+  completedByEmployee: one(employees, {
+    fields: [onboardingTasks.completedBy],
+    references: [employees.id],
+  }),
+  documents: many(onboardingDocuments),
+}));
+
+export const onboardingDocumentRelations = relations(onboardingDocuments, ({ one }) => ({
+  onboarding: one(employeeOnboarding, {
+    fields: [onboardingDocuments.onboardingId],
+    references: [employeeOnboarding.id],
+  }),
+  task: one(onboardingTasks, {
+    fields: [onboardingDocuments.taskId],
+    references: [onboardingTasks.id],
+  }),
+  uploadedByEmployee: one(employees, {
+    fields: [onboardingDocuments.uploadedBy],
+    references: [employees.id],
+  }),
+  verifiedByEmployee: one(employees, {
+    fields: [onboardingDocuments.verifiedBy],
+    references: [employees.id],
+  }),
+}));
+
+export const attendanceRecordRelations = relations(attendanceRecords, ({ one }) => ({
+  employee: one(employees, {
+    fields: [attendanceRecords.employeeId],
+    references: [employees.id],
+  }),
+}));
+
+export const timesheetRelations = relations(timesheets, ({ one }) => ({
+  employee: one(employees, {
+    fields: [timesheets.employeeId],
+    references: [employees.id],
+  }),
+  approver: one(employees, {
+    fields: [timesheets.approvedBy],
+    references: [employees.id],
+  }),
 }));
 
 export const leaveRequestRelations = relations(leaveRequests, ({ one }) => ({
@@ -556,6 +784,47 @@ export const insertEmployeeSchema = createInsertSchema(employees).omit({
   updatedAt: true,
 });
 
+export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTimesheetSchema = createInsertSchema(timesheets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOnboardingTemplateSchema = createInsertSchema(onboardingTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOnboardingChecklistItemSchema = createInsertSchema(onboardingChecklistItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEmployeeOnboardingSchema = createInsertSchema(employeeOnboarding).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOnboardingTaskSchema = createInsertSchema(onboardingTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOnboardingDocumentSchema = createInsertSchema(onboardingDocuments).omit({
+  id: true,
+  uploadedAt: true,
+  createdAt: true,
+});
+
 export const insertLeaveTypeSchema = createInsertSchema(leaveTypes).omit({
   id: true,
   createdAt: true,
@@ -628,6 +897,20 @@ export type InsertSubTeam = z.infer<typeof insertSubTeamSchema>;
 export type InsertPosition = z.infer<typeof insertPositionSchema>;
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
+export type InsertAttendanceRecord = z.infer<typeof insertAttendanceRecordSchema>;
+export type Timesheet = typeof timesheets.$inferSelect;
+export type InsertTimesheet = z.infer<typeof insertTimesheetSchema>;
+export type OnboardingTemplate = typeof onboardingTemplates.$inferSelect;
+export type InsertOnboardingTemplate = z.infer<typeof insertOnboardingTemplateSchema>;
+export type OnboardingChecklistItem = typeof onboardingChecklistItems.$inferSelect;
+export type InsertOnboardingChecklistItem = z.infer<typeof insertOnboardingChecklistItemSchema>;
+export type EmployeeOnboarding = typeof employeeOnboarding.$inferSelect;
+export type InsertEmployeeOnboarding = z.infer<typeof insertEmployeeOnboardingSchema>;
+export type OnboardingTask = typeof onboardingTasks.$inferSelect;
+export type InsertOnboardingTask = z.infer<typeof insertOnboardingTaskSchema>;
+export type OnboardingDocument = typeof onboardingDocuments.$inferSelect;
+export type InsertOnboardingDocument = z.infer<typeof insertOnboardingDocumentSchema>;
 export type LeaveType = typeof leaveTypes.$inferSelect;
 export type InsertLeaveType = z.infer<typeof insertLeaveTypeSchema>;
 export type LeaveRequest = typeof leaveRequests.$inferSelect;

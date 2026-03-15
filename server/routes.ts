@@ -11,6 +11,8 @@ import {
   insertSubTeamSchema,
   insertPositionSchema,
   insertEmployeeSchema,
+  insertAttendanceRecordSchema,
+  insertTimesheetSchema,
   insertLeaveTypeSchema,
   insertLeaveRequestSchema,
   insertPayrollRecordSchema,
@@ -619,10 +621,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.params;
       const employee = await storage.getEmployeeByUserId(userId);
-      if (!employee) {
-        return res.status(404).json({ message: "Employee not found" });
-      }
-      res.json(employee);
+      // Return null instead of 404 - this is expected for users without employee records (e.g., admins)
+      res.json(employee || null);
     } catch (error) {
       console.error("Error fetching employee by user ID:", error);
       res.status(500).json({ message: "Failed to fetch employee" });
@@ -680,6 +680,260 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting employee:", error);
       res.status(500).json({ message: "Failed to delete employee" });
+    }
+  });
+
+  // Attendance routes
+  app.get('/api/attendance', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, startDate, endDate, date } = req.query;
+      const filters: any = {};
+      if (employeeId) filters.employeeId = employeeId as string;
+      if (startDate) filters.startDate = startDate as string;
+      if (endDate) filters.endDate = endDate as string;
+      if (date) filters.date = date as string;
+      
+      const records = await storage.getAttendanceRecords(filters);
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching attendance records:", error);
+      res.status(500).json({ message: "Failed to fetch attendance records" });
+    }
+  });
+
+  app.get('/api/attendance/today', isAuthenticated, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      
+      const record = await storage.getTodayAttendanceRecord(employee.id);
+      res.json(record || null);
+    } catch (error) {
+      console.error("Error fetching today's attendance:", error);
+      res.status(500).json({ message: "Failed to fetch today's attendance" });
+    }
+  });
+
+  app.post('/api/attendance/clock-in', isAuthenticated, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      
+      const { location } = req.body;
+      const record = await storage.clockIn(employee.id, location);
+      res.status(201).json(record);
+    } catch (error: any) {
+      console.error("Error clocking in:", error);
+      res.status(400).json({ message: error.message || "Failed to clock in" });
+    }
+  });
+
+  app.post('/api/attendance/clock-out', isAuthenticated, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      
+      const record = await storage.clockOut(employee.id);
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error clocking out:", error);
+      res.status(400).json({ message: error.message || "Failed to clock out" });
+    }
+  });
+
+  app.get('/api/attendance/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const record = await storage.getAttendanceRecord(id);
+      if (!record) {
+        return res.status(404).json({ message: "Attendance record not found" });
+      }
+      res.json(record);
+    } catch (error) {
+      console.error("Error fetching attendance record:", error);
+      res.status(500).json({ message: "Failed to fetch attendance record" });
+    }
+  });
+
+  app.put('/api/attendance/:id', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const cleanedData: any = {};
+      if (req.body.clockIn !== undefined) cleanedData.clockIn = req.body.clockIn;
+      if (req.body.clockOut !== undefined) cleanedData.clockOut = req.body.clockOut;
+      if (req.body.breakDuration !== undefined) cleanedData.breakDuration = req.body.breakDuration;
+      if (req.body.status !== undefined) cleanedData.status = req.body.status;
+      if (req.body.notes !== undefined) cleanedData.notes = req.body.notes;
+      if (req.body.location !== undefined) cleanedData.location = req.body.location;
+      
+      const record = await storage.updateAttendanceRecord(id, cleanedData);
+      res.json(record);
+    } catch (error: any) {
+      if (error.message === 'Attendance record not found') {
+        return res.status(404).json({ message: "Attendance record not found" });
+      }
+      console.error("Error updating attendance record:", error);
+      res.status(500).json({ message: "Failed to update attendance record" });
+    }
+  });
+
+  app.put('/api/attendance/:id/break', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { breakMinutes } = req.body;
+      
+      if (breakMinutes === undefined || breakMinutes < 0) {
+        return res.status(400).json({ message: "Valid break duration in minutes is required" });
+      }
+      
+      const record = await storage.updateBreakDuration(id, breakMinutes);
+      res.json(record);
+    } catch (error: any) {
+      if (error.message === 'Attendance record not found') {
+        return res.status(404).json({ message: "Attendance record not found" });
+      }
+      console.error("Error updating break duration:", error);
+      res.status(500).json({ message: "Failed to update break duration" });
+    }
+  });
+
+  // Timesheet routes
+  app.get('/api/timesheets', isAuthenticated, async (req, res) => {
+    try {
+      const { employeeId, weekStartDate, status } = req.query;
+      const filters: any = {};
+      if (employeeId) filters.employeeId = employeeId as string;
+      if (weekStartDate) filters.weekStartDate = weekStartDate as string;
+      if (status) filters.status = status as string;
+      
+      const timesheets = await storage.getTimesheets(filters);
+      res.json(timesheets);
+    } catch (error) {
+      console.error("Error fetching timesheets:", error);
+      res.status(500).json({ message: "Failed to fetch timesheets" });
+    }
+  });
+
+  app.get('/api/timesheets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const timesheet = await storage.getTimesheet(id);
+      if (!timesheet) {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      res.json(timesheet);
+    } catch (error) {
+      console.error("Error fetching timesheet:", error);
+      res.status(500).json({ message: "Failed to fetch timesheet" });
+    }
+  });
+
+  app.post('/api/timesheets', isAuthenticated, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+      
+      const timesheetData = insertTimesheetSchema.parse({
+        ...req.body,
+        employeeId: employee.id,
+      });
+      const timesheet = await storage.createTimesheet(timesheetData);
+      res.status(201).json(timesheet);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid timesheet data", errors: error.errors });
+      }
+      console.error("Error creating timesheet:", error);
+      res.status(500).json({ message: "Failed to create timesheet" });
+    }
+  });
+
+  app.put('/api/timesheets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const timesheetData = insertTimesheetSchema.partial().parse(req.body);
+      const timesheet = await storage.updateTimesheet(id, timesheetData);
+      res.json(timesheet);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid timesheet data", errors: error.errors });
+      }
+      if (error.message === 'Timesheet not found') {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      console.error("Error updating timesheet:", error);
+      res.status(500).json({ message: "Failed to update timesheet" });
+    }
+  });
+
+  app.post('/api/timesheets/:id/submit', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const timesheet = await storage.submitTimesheet(id);
+      res.json(timesheet);
+    } catch (error: any) {
+      if (error.message === 'Timesheet not found') {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      console.error("Error submitting timesheet:", error);
+      res.status(500).json({ message: "Failed to submit timesheet" });
+    }
+  });
+
+  app.post('/api/timesheets/:id/approve', isAuthenticated, requireManager, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = (req as any).user;
+      const approver = await storage.getEmployeeByUserId(user.id);
+      if (!approver) {
+        return res.status(404).json({ message: "Approver not found" });
+      }
+      
+      const timesheet = await storage.approveTimesheet(id, approver.id);
+      res.json(timesheet);
+    } catch (error: any) {
+      if (error.message === 'Timesheet not found') {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      console.error("Error approving timesheet:", error);
+      res.status(500).json({ message: "Failed to approve timesheet" });
+    }
+  });
+
+  app.post('/api/timesheets/:id/reject', isAuthenticated, requireManager, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      const user = (req as any).user;
+      const approver = await storage.getEmployeeByUserId(user.id);
+      if (!approver) {
+        return res.status(404).json({ message: "Approver not found" });
+      }
+      
+      if (!reason) {
+        return res.status(400).json({ message: "Rejection reason is required" });
+      }
+      
+      const timesheet = await storage.rejectTimesheet(id, approver.id, reason);
+      res.json(timesheet);
+    } catch (error: any) {
+      if (error.message === 'Timesheet not found') {
+        return res.status(404).json({ message: "Timesheet not found" });
+      }
+      console.error("Error rejecting timesheet:", error);
+      res.status(500).json({ message: "Failed to reject timesheet" });
     }
   });
 
