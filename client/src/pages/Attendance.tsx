@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import { Clock, MapPin, Calendar, LogIn, LogOut, CheckCircle2, XCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,12 +13,15 @@ import { format, formatDistanceToNow, isToday, parseISO } from "date-fns";
 import type { AttendanceRecord } from "@shared/schema";
 
 export default function Attendance() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [location, setLocation] = useState<string>("office");
 
   const { data: todayRecord, isLoading } = useQuery<AttendanceRecord | null>({
     queryKey: ['/api/attendance/today'],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!user,
   });
 
   const clockInMutation = useMutation({

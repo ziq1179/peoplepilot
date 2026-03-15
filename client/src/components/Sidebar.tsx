@@ -120,7 +120,7 @@ function NavSection({ title, items, defaultOpen = true, location, isMobile, onCl
       <CollapsibleTrigger className="w-full">
         <div className={cn(
           "flex items-center justify-between w-full px-3 py-2 rounded-lg transition-colors",
-          "text-xs font-semibold text-muted-foreground uppercase tracking-wider",
+          "text-xs font-semibold text-sidebar-foreground/70 uppercase tracking-wider",
           "hover:text-foreground hover:bg-muted/50 cursor-pointer"
         )}>
           <span>{title}</span>
@@ -142,8 +142,8 @@ function NavSection({ title, items, defaultOpen = true, location, isMobile, onCl
                 className={cn(
                   "flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ml-2",
                   isActive 
-                    ? "text-primary bg-primary/10 border border-primary/20" 
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "text-sidebar-accent-foreground bg-sidebar-accent font-medium" 
+                    : "text-sidebar-foreground hover:text-foreground hover:bg-muted/80"
                 )}
                 onClick={isMobile ? onClose : undefined}
                 data-testid={item.testId}
@@ -175,7 +175,7 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     <>
       <aside 
         className={cn(
-          "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-card border-r border-border shadow-sm transition-transform duration-300 z-40",
+          "fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-sidebar border-r border-sidebar-border transition-transform duration-300 z-40",
           isOpen || !isMobile ? "translate-x-0" : "-translate-x-full",
           !isMobile && "lg:translate-x-0"
         )}

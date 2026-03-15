@@ -706,7 +706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = (req as any).user;
       const employee = await storage.getEmployeeByUserId(user.id);
       if (!employee) {
-        return res.status(404).json({ message: "Employee not found" });
+        return res.status(200).json(null);
       }
       
       const record = await storage.getTodayAttendanceRecord(employee.id);

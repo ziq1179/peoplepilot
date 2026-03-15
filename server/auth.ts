@@ -148,7 +148,7 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.isAuthenticated()) return res.status(200).json(null);
     // Remove password before sending to client
     const { password: _, ...userWithoutPassword } = req.user!;
     res.json(userWithoutPassword);

@@ -1,6 +1,43 @@
 # Deploy PeoplePilot to Render
 
-## 1. Push your code to GitHub
+## Configure Render (do this now)
+
+1. **Open Render**  
+   Go to **[dashboard.render.com](https://dashboard.render.com)** and sign in with GitHub (same account as `ziq1179`).
+
+2. **New Web Service**  
+   Click **New +** → **Web Service**.
+
+3. **Connect the repo**  
+   Select **ziq1179/peoplepilot**. If you don’t see it, click **Configure account** and grant Render access to the repo.
+
+4. **Settings** (fill exactly):
+
+   | Field | Value |
+   |-------|--------|
+   | **Name** | `peoplepilot` |
+   | **Region** | Oregon (or nearest to you) |
+   | **Branch** | `main` |
+   | **Runtime** | Node |
+   | **Build Command** | `npm install && npm run build` |
+   | **Start Command** | `npm start` |
+   | **Instance Type** | Free |
+
+5. **Environment variables**  
+   Click **Advanced** → **Add Environment Variable**. Add:
+
+   | Key | Value |
+   |-----|--------|
+   | `NODE_ENV` | `production` |
+   | `DATABASE_URL` | Paste your Neon URL from `.env` (starts with `postgresql://...`) |
+   | `SESSION_SECRET` | Any long random string, e.g. run in terminal: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and paste the output |
+
+6. **Deploy**  
+   Click **Create Web Service**. Render will clone the repo, run the build, and start the app. When it’s green, your app URL will be like **https://peoplepilot.onrender.com**.
+
+---
+
+## 1. Push your code to GitHub (already done)
 
 Render deploys from Git. If you haven’t already:
 
