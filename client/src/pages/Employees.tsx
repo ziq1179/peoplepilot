@@ -18,6 +18,7 @@ import {
 import { Plus, Search, Download, Filter, Eye, Edit, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import { useDepartments } from "@/hooks/use-departments";
 import type { Employee, Department } from "@shared/schema";
 
 export default function Employees() {
@@ -34,9 +35,7 @@ export default function Employees() {
     }],
   });
 
-  const { data: departments } = useQuery({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const getStatusBadge = (status: string) => {
     switch (status) {

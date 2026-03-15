@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useDepartments } from "@/hooks/use-departments";
 import { apiRequest } from "@/lib/queryClient";
 import { insertEmployeeSchema } from "@shared/schema";
 import { Save, User, Calendar, FileText, Edit3, Phone, Mail, MapPin, Building2 } from "lucide-react";
@@ -30,9 +31,7 @@ export default function MyProfile() {
     enabled: !!user?.employee?.id,
   });
 
-  const { data: departments } = useQuery({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const { data: positions } = useQuery({
     queryKey: ['/api/positions'],

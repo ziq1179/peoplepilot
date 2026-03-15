@@ -10,6 +10,7 @@ import { BarChart3, Download, Calendar, Users, Clock, TrendingUp, AlertCircle } 
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
+import { useDepartments } from "@/hooks/use-departments";
 import type { AttendanceRecord, Employee } from "@shared/schema";
 
 export default function AttendanceReports() {
@@ -32,10 +33,8 @@ export default function AttendanceReports() {
     queryKey: ['/api/attendance', { startDate: startDateStr, endDate: endDateStr }],
   });
 
-  // Get departments
-  const { data: departments } = useQuery({
-    queryKey: ['/api/departments'],
-  });
+  // Get departments (only when logged in)
+  const { data: departments } = useDepartments();
 
   // Filter employees by department
   const filteredEmployees = employees?.filter(emp => {

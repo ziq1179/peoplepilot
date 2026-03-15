@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { insertEmployeeSchema } from "@shared/schema";
 import { Save, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
+import { useDepartments } from "@/hooks/use-departments";
 import type { Employee, Department, Position } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -30,9 +31,7 @@ export default function EmployeeForm() {
     enabled: isEdit && !!employeeId,
   });
 
-  const { data: departments } = useQuery<Department[]>({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const { data: positions } = useQuery<Position[]>({
     queryKey: ['/api/positions'],

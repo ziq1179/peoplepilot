@@ -14,6 +14,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useDepartments } from "@/hooks/use-departments";
 import { insertCompanySchema, insertDepartmentSchema, insertPositionSchema, insertTeamSchema, insertSubTeamSchema } from "@shared/schema";
 import { 
   Settings, 
@@ -115,9 +116,7 @@ export default function CompanyConfig() {
     queryKey: ['/api/company'],
   });
 
-  const { data: departments } = useQuery<Department[]>({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const { data: positions } = useQuery<Position[]>({
     queryKey: ['/api/positions'],

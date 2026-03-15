@@ -13,6 +13,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useDepartments } from "@/hooks/use-departments";
 import { insertPositionSchema } from "@shared/schema";
 import { Plus, Edit, Trash2, Briefcase, Building2, DollarSign } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,9 +31,7 @@ export default function Positions() {
     queryKey: ['/api/positions'],
   });
 
-  const { data: departments } = useQuery({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const form = useForm({
     resolver: zodResolver(insertPositionSchema),

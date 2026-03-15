@@ -13,6 +13,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useDepartments } from "@/hooks/use-departments";
 import { insertJobPostingSchema } from "@shared/schema";
 import { Plus, Briefcase, MapPin, Calendar, DollarSign, Eye, Edit2, Trash } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,9 +31,7 @@ export default function JobPostings() {
     queryKey: ['/api/recruitment/jobs', { status: statusFilter === "all" ? undefined : statusFilter }],
   });
 
-  const { data: departments } = useQuery<Department[]>({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const { data: positions } = useQuery<Position[]>({
     queryKey: ['/api/positions'],

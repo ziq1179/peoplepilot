@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/hooks/use-toast";
+import { useDepartments } from "@/hooks/use-departments";
 import { 
   Users, 
   Calendar, 
@@ -30,9 +31,7 @@ export default function Reports() {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const { toast } = useToast();
 
-  const { data: departments } = useQuery({
-    queryKey: ['/api/departments'],
-  });
+  const { data: departments } = useDepartments();
 
   const form = useForm({
     defaultValues: {
