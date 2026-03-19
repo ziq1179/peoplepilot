@@ -486,6 +486,7 @@ export default function Payroll() {
               </Form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
