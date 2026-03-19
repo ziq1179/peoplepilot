@@ -11,19 +11,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useDepartments } from "@/hooks/use-departments";
 import { insertDepartmentSchema } from "@shared/schema";
 import { Plus, Edit, Trash2, Building2, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Department, Employee } from "@shared/schema";
-import { isUnauthorizedError } from "@/lib/authUtils";
+import { isUnauthorizedError, isForbiddenError } from "@/lib/authUtils";
 
 export default function Departments() {
+  const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const canManageDepartments = user?.role === "admin" || user?.role === "hr";
 
   const { data: departments, isLoading: departmentsLoading } = useDepartments();
 
@@ -66,6 +69,14 @@ export default function Departments() {
         }, 500);
         return;
       }
+      if (isForbiddenError(error)) {
+        toast({
+          title: "Permission denied",
+          description: "Only HR or Admin can create departments.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to create department. Please try again.",
@@ -100,6 +111,14 @@ export default function Departments() {
         }, 500);
         return;
       }
+      if (isForbiddenError(error)) {
+        toast({
+          title: "Permission denied",
+          description: "Only HR or Admin can update departments.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Error",
         description: "Failed to update department. Please try again.",
@@ -129,6 +148,14 @@ export default function Departments() {
         setTimeout(() => {
           window.location.href = "/api/login";
         }, 500);
+        return;
+      }
+      if (isForbiddenError(error)) {
+        toast({
+          title: "Permission denied",
+          description: "Only Admin can delete departments.",
+          variant: "destructive",
+        });
         return;
       }
       toast({
@@ -213,6 +240,7 @@ export default function Departments() {
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          {canManageDepartments && (
           <DialogTrigger asChild>
             <Button 
               className="mt-4 sm:mt-0" 
@@ -226,6 +254,7 @@ export default function Departments() {
               Add Department
             </Button>
           </DialogTrigger>
+          )}
           <DialogContent data-testid="dialog-department-form">
             <DialogHeader>
               <DialogTitle>
@@ -328,6 +357,7 @@ export default function Departments() {
                     </CardTitle>
                   </div>
                 </div>
+                {canManageDepartments && (
                 <div className="flex space-x-1">
                   <Button 
                     variant="ghost" 
@@ -347,6 +377,7 @@ export default function Departments() {
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -426,6 +457,7 @@ export default function Departments() {
                     {department.budget ? `$${parseFloat(department.budget).toLocaleString()}` : "N/A"}
                   </TableCell>
                   <TableCell>
+                    {canManageDepartments ? (
                     <div className="flex items-center space-x-2">
                       <Button 
                         variant="ghost" 
@@ -445,6 +477,9 @@ export default function Departments() {
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">View only</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
