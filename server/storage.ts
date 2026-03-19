@@ -1307,25 +1307,23 @@ export class DatabaseStorage implements IStorage {
     status?: string;
     departmentId?: string;
   }): Promise<JobPosting[]> {
-    let query = db.select().from(jobPostings);
-    
-    if (filters) {
-      const conditions = [];
-      
-      if (filters.status) {
-        conditions.push(eq(jobPostings.status, filters.status));
-      }
-      
-      if (filters.departmentId) {
-        conditions.push(eq(jobPostings.departmentId, filters.departmentId));
-      }
-      
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
+    const conditions = [];
+    if (filters?.status) {
+      conditions.push(eq(jobPostings.status, filters.status));
     }
-    
-    return await query.orderBy(desc(jobPostings.createdAt));
+    if (filters?.departmentId) {
+      conditions.push(eq(jobPostings.departmentId, filters.departmentId));
+    }
+
+    if (conditions.length > 0) {
+      return await db
+        .select()
+        .from(jobPostings)
+        .where(and(...conditions))
+        .orderBy(desc(jobPostings.createdAt));
+    }
+
+    return await db.select().from(jobPostings).orderBy(desc(jobPostings.createdAt));
   }
 
   async getJobPosting(id: string): Promise<JobPosting | undefined> {

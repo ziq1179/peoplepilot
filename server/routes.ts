@@ -1352,16 +1352,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Job Posting routes
   app.get('/api/recruitment/jobs', isAuthenticated, async (req, res) => {
     try {
-      const { status, departmentId } = req.query;
+      const first = (q: unknown): string | undefined => {
+        if (typeof q === "string" && q.length > 0) return q;
+        if (Array.isArray(q) && typeof q[0] === "string") return q[0];
+        return undefined;
+      };
       const filters = {
-        status: status as string,
-        departmentId: departmentId as string,
+        status: first(req.query.status),
+        departmentId: first(req.query.departmentId),
       };
       const jobs = await storage.getJobPostings(filters);
       res.json(jobs);
     } catch (error) {
       console.error("Error fetching job postings:", error);
-      res.status(500).json({ message: "Failed to fetch job postings" });
+      res.status(500).json({
+        message: "Failed to fetch job postings",
+        ...(process.env.NODE_ENV === "development" && error instanceof Error
+          ? { detail: error.message }
+          : {}),
+      });
     }
   });
 
