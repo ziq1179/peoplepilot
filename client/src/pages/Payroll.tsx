@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +18,79 @@ import { Plus, DollarSign, TrendingUp, FileText, Download } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PayrollRecord, Employee } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { format } from "date-fns";
+
+function GeneratePayrollDialog({
+  open,
+  onOpenChange,
+  employees,
+  onGenerate,
+  isGenerating,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  employees: Employee[];
+  onGenerate: (data: { payPeriodStart: string; payPeriodEnd: string }) => void;
+  isGenerating: boolean;
+}) {
+  const today = new Date();
+  const periodEnd = new Date(today.getFullYear(), today.getMonth(), 15);
+  const periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (today.getDate() < 15) {
+    periodEnd.setMonth(periodEnd.getMonth() - 1);
+    periodEnd.setDate(new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, 0).getDate());
+    periodStart.setMonth(periodStart.getMonth() - 1);
+  }
+  const [start, setStart] = useState(format(periodStart, "yyyy-MM-dd"));
+  const [end, setEnd] = useState(format(periodEnd, "yyyy-MM-dd"));
+  return (
+    <>
+      <Button variant="outline" onClick={() => onOpenChange(true)} data-testid="button-run-payroll">
+        <FileText className="w-4 h-4 mr-2" />
+        Generate Payroll
+      </Button>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Payroll</DialogTitle>
+            <DialogDescription>
+              Auto-calculate payroll from employee salaries and attendance. Tax is calculated automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Pay Period Start</label>
+                <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Pay Period End</label>
+                <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1" />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Generates draft records for all active employees with salary. Uses attendance data for overtime.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={() => onGenerate({ payPeriodStart: start, payPeriodEnd: end })} disabled={isGenerating}>
+              {isGenerating ? "Generating..." : "Generate"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 export default function Payroll() {
+  const { user } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
+  const canManagePayroll = user?.role === "admin" || user?.role === "hr";
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -79,6 +148,28 @@ export default function Payroll() {
       toast({
         title: "Error",
         description: "Failed to create payroll record. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async (data: { payPeriodStart: string; payPeriodEnd: string; employeeIds?: string[] }) => {
+      const res = await apiRequest("POST", "/api/payroll/generate", data);
+      return res.json();
+    },
+    onSuccess: (data: { generated: number }) => {
+      toast({
+        title: "Payroll generated",
+        description: `Created ${data.generated} draft payroll record(s). Tax calculated automatically.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/payroll"] });
+      setIsGenerateDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate payroll",
         variant: "destructive",
       });
     },
@@ -195,11 +286,16 @@ export default function Payroll() {
         </div>
         
         <div className="flex space-x-2 mt-4 sm:mt-0">
-          <Button variant="outline" data-testid="button-run-payroll">
-            <FileText className="w-4 h-4 mr-2" />
-            Run Payroll
-          </Button>
-          
+          {canManagePayroll && (
+          <GeneratePayrollDialog
+            open={isGenerateDialogOpen}
+            onOpenChange={setIsGenerateDialogOpen}
+            employees={employees || []}
+            onGenerate={(data) => generateMutation.mutate(data)}
+            isGenerating={generateMutation.isPending}
+          />
+          )}
+          {canManagePayroll && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-new-payroll-record">

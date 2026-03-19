@@ -74,6 +74,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, like, or, count, sql } from "drizzle-orm";
+import { calculatePayroll } from "./lib/payroll-calc";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -201,6 +202,11 @@ export interface IStorage {
   }): Promise<PayrollRecord[]>;
   createPayrollRecord(payroll: InsertPayrollRecord): Promise<PayrollRecord>;
   updatePayrollRecord(id: string, payroll: Partial<InsertPayrollRecord>): Promise<PayrollRecord>;
+  generatePayrollForPeriod(
+    payPeriodStart: string,
+    payPeriodEnd: string,
+    employeeIds?: string[]
+  ): Promise<PayrollRecord[]>;
   
   // Performance review operations
   getPerformanceReviews(filters?: {
@@ -314,6 +320,7 @@ export interface IStorage {
     activeLeaveRequests: number;
     pendingReviews: number;
     totalDepartments: number;
+    pendingLeaveRequests: Array<{ id: string; employeeName: string; type: string; days: number }>;
   }>;
 }
 
@@ -1087,6 +1094,69 @@ export class DatabaseStorage implements IStorage {
     return updatedPayroll;
   }
 
+  async generatePayrollForPeriod(
+    payPeriodStart: string,
+    payPeriodEnd: string,
+    employeeIds?: string[]
+  ): Promise<PayrollRecord[]> {
+    let empList = await db.select().from(employees).where(eq(employees.status, 'active'));
+    if (employeeIds?.length) {
+      const idSet = new Set(employeeIds);
+      empList = empList.filter((e) => idSet.has(e.id));
+    }
+
+    const periodDays = (new Date(payPeriodEnd).getTime() - new Date(payPeriodStart).getTime()) / (1000 * 60 * 60 * 24) + 1;
+    const payPeriodsPerYear = periodDays <= 16 ? 24 : 26;
+
+    const created: PayrollRecord[] = [];
+    for (const emp of empList) {
+      const baseSalary = emp.salary ? parseFloat(emp.salary) : 0;
+      if (baseSalary <= 0) continue;
+
+      const existing = await db.select().from(payrollRecords).where(
+        and(
+          eq(payrollRecords.employeeId, emp.id),
+          eq(payrollRecords.payPeriodStart, payPeriodStart),
+          eq(payrollRecords.payPeriodEnd, payPeriodEnd)
+        )
+      );
+      if (existing.length > 0) continue;
+
+      const attRecords = await this.getAttendanceRecords({
+        employeeId: emp.id,
+        startDate: payPeriodStart,
+        endDate: payPeriodEnd,
+      });
+      const totalHours = attRecords.reduce((sum, r) => sum + (r.totalHours ? parseFloat(r.totalHours) : 0), 0);
+      const workDays = periodDays >= 14 ? 10 : 5;
+      const standardHours = workDays * 8;
+      const regularHours = Math.min(totalHours, standardHours);
+      const overtimeHours = Math.max(0, totalHours - standardHours);
+
+      const result = calculatePayroll({
+        baseSalaryAnnual: baseSalary,
+        regularHours,
+        overtimeHours,
+        payPeriodsPerYear,
+      });
+
+      const [record] = await db.insert(payrollRecords).values({
+        employeeId: emp.id,
+        payPeriodStart,
+        payPeriodEnd,
+        baseSalary: result.baseSalary.toFixed(2),
+        overtime: result.overtime.toFixed(2),
+        bonuses: '0',
+        deductions: '0',
+        taxes: result.taxes.toFixed(2),
+        netPay: result.netPay.toFixed(2),
+        status: 'draft',
+      }).returning();
+      created.push(record);
+    }
+    return created;
+  }
+
   // Performance review operations
   async getPerformanceReviews(filters?: {
     employeeId?: string;
@@ -1687,17 +1757,41 @@ export class DatabaseStorage implements IStorage {
     activeLeaveRequests: number;
     pendingReviews: number;
     totalDepartments: number;
+    pendingLeaveRequests: Array<{ id: string; employeeName: string; type: string; days: number }>;
   }> {
     const [employeeCount] = await db.select({ count: count() }).from(employees).where(eq(employees.status, 'active'));
     const [leaveCount] = await db.select({ count: count() }).from(leaveRequests).where(eq(leaveRequests.status, 'pending'));
     const [reviewCount] = await db.select({ count: count() }).from(performanceReviews).where(eq(performanceReviews.status, 'draft'));
     const [departmentCount] = await db.select({ count: count() }).from(departments);
 
+    const pendingLeaves = await db
+      .select({
+        id: leaveRequests.id,
+        daysRequested: leaveRequests.daysRequested,
+        employeeFirstName: employees.firstName,
+        employeeLastName: employees.lastName,
+        leaveTypeName: leaveTypes.name,
+      })
+      .from(leaveRequests)
+      .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
+      .leftJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+      .where(eq(leaveRequests.status, 'pending'))
+      .orderBy(desc(leaveRequests.createdAt))
+      .limit(5);
+
+    const pendingWithNames = pendingLeaves.map((l) => ({
+      id: l.id,
+      employeeName: [l.employeeFirstName, l.employeeLastName].filter(Boolean).join(" ") || "Unknown",
+      type: l.leaveTypeName || "Leave",
+      days: l.daysRequested || 0,
+    }));
+
     return {
       totalEmployees: employeeCount.count,
       activeLeaveRequests: leaveCount.count,
       pendingReviews: reviewCount.count,
       totalDepartments: departmentCount.count,
+      pendingLeaveRequests: pendingWithNames,
     };
   }
 }

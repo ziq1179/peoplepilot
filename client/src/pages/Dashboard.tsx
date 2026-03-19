@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,6 @@ import {
   FileText,
   BarChart3,
   CheckCircle,
-  XCircle,
   Clock
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,29 +52,12 @@ export default function Dashboard() {
     { icon: BarChart3, label: "Generate Report", color: "text-chart-2" },
   ];
 
-  const pendingApprovals = [
-    {
-      id: 1,
-      name: "Michael Brown",
-      type: "Leave Request",
-      details: "3 days",
-      avatar: "/avatars/michael.jpg"
-    },
-    {
-      id: 2,
-      name: "Lisa Wang",
-      type: "Expense Report",
-      details: "$1,250",
-      avatar: "/avatars/lisa.jpg"
-    },
-    {
-      id: 3,
-      name: "David Rodriguez",
-      type: "Overtime Request",
-      details: "10 hours",
-      avatar: "/avatars/david.jpg"
-    },
-  ];
+  const pendingApprovals = (stats?.pendingLeaveRequests ?? []).map((r) => ({
+    id: r.id,
+    name: r.employeeName,
+    type: r.type,
+    details: `${r.days} day${r.days !== 1 ? "s" : ""}`,
+  }));
 
   const departmentData = [
     { name: "Engineering", count: 432, percentage: 65, color: "bg-primary" },
@@ -129,8 +112,9 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="mt-4 flex items-center text-sm">
-              <span className="text-destructive font-medium">3 urgent</span>
-              <span className="text-muted-foreground ml-1">require attention</span>
+              <span className="text-muted-foreground">
+                {stats?.activeLeaveRequests ? `${stats.activeLeaveRequests} require attention` : "None pending"}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -257,49 +241,46 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Pending Approvals</CardTitle>
-              <Badge variant="destructive" className="text-xs">3 urgent</Badge>
+              {pendingApprovals.length > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {pendingApprovals.length} pending
+                </Badge>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pendingApprovals.map((approval) => (
-              <div key={approval.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={approval.avatar} />
-                    <AvatarFallback>{approval.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium text-foreground" data-testid={`text-approval-name-${approval.id}`}>
-                      {approval.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground" data-testid={`text-approval-details-${approval.id}`}>
-                      {approval.type} - {approval.details}
-                    </p>
+            {pendingApprovals.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4">No pending leave requests.</p>
+            ) : (
+              pendingApprovals.map((approval) => (
+                <div key={approval.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback>{approval.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-medium text-foreground" data-testid={`text-approval-name-${approval.id}`}>
+                        {approval.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground" data-testid={`text-approval-details-${approval.id}`}>
+                        {approval.type} - {approval.details}
+                      </p>
+                    </div>
                   </div>
+                  <Link href="/leave/approvals">
+                    <Button size="sm" variant="outline" data-testid={`button-view-leave-${approval.id}`}>
+                      Review
+                    </Button>
+                  </Link>
                 </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    size="sm" 
-                    className="w-8 h-8 bg-accent hover:bg-accent/90"
-                    data-testid={`button-approve-${approval.id}`}
-                  >
-                    <CheckCircle className="w-3 h-3" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="destructive" 
-                    className="w-8 h-8"
-                    data-testid={`button-reject-${approval.id}`}
-                  >
-                    <XCircle className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            
-            <Button variant="ghost" className="w-full mt-4 text-primary hover:text-primary/80">
-              View All Approvals
-            </Button>
+              ))
+            )}
+
+            <Link href="/leave/approvals">
+              <Button variant="ghost" className="w-full mt-4 text-primary hover:text-primary/80">
+                View All Approvals
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 

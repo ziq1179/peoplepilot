@@ -1161,7 +1161,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/payroll', isAuthenticated, async (req, res) => {
+  app.post('/api/payroll/generate', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const { payPeriodStart, payPeriodEnd, employeeIds } = req.body;
+      if (!payPeriodStart || !payPeriodEnd) {
+        return res.status(400).json({ message: "payPeriodStart and payPeriodEnd are required" });
+      }
+      const records = await storage.generatePayrollForPeriod(
+        payPeriodStart,
+        payPeriodEnd,
+        Array.isArray(employeeIds) ? employeeIds : undefined
+      );
+      res.status(201).json({ generated: records.length, records });
+    } catch (error) {
+      console.error("Error generating payroll:", error);
+      res.status(500).json({ message: "Failed to generate payroll" });
+    }
+  });
+
+  app.post('/api/payroll', isAuthenticated, requireHR, async (req, res) => {
     try {
       const payrollData = insertPayrollRecordSchema.parse(req.body);
       const payrollRecord = await storage.createPayrollRecord(payrollData);
