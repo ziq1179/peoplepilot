@@ -25,7 +25,8 @@ import {
   ChevronRight,
   LayoutDashboard,
   Building,
-  Clock
+  Clock,
+  PanelLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -182,8 +183,16 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
         data-testid="sidebar"
       >
         <nav className="p-4 space-y-4 overflow-y-auto h-full">
-          {isMobile && (
-            <div className="flex justify-end mb-4">
+          {/* Sidebar / Explorer title with icon */}
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-2 mb-2",
+            isMobile && "justify-between"
+          )}>
+            <div className="flex items-center gap-2">
+              <PanelLeft className="w-5 h-5 text-sidebar-foreground/80" />
+              <span className="text-sm font-semibold text-sidebar-foreground">Navigation</span>
+            </div>
+            {isMobile && (
               <Button 
                 variant="ghost" 
                 size="icon"
@@ -192,8 +201,8 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
               >
                 <X className="h-4 w-4" />
               </Button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Main Navigation */}
           <NavSection
