@@ -15,15 +15,18 @@ import {
   insertTimesheetSchema,
   insertLeaveTypeSchema,
   insertLeaveRequestSchema,
+  insertLeavePolicySchema,
   insertPayrollRecordSchema,
   insertPerformanceReviewSchema,
   insertPerformanceGoalSchema,
   insertDocumentSchema,
   insertJobPostingSchema,
   insertApplicationSchema,
-  insertInterviewSchema
+  insertInterviewSchema,
+  type LeaveRequest as LeaveRequestType,
 } from "@shared/schema";
 import { z } from "zod";
+import { validateLeaveRequest } from "./lib/leave-policy";
 
 // Authentication middleware is now imported from middleware/rbac.ts
 
@@ -948,7 +951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/leave/types', isAuthenticated, async (req, res) => {
+  app.post('/api/leave/types', isAuthenticated, requireHR, async (req, res) => {
     try {
       const leaveTypeData = insertLeaveTypeSchema.parse(req.body);
       const leaveType = await storage.createLeaveType(leaveTypeData);
@@ -962,7 +965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/leave/types/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/leave/types/:id', isAuthenticated, requireHR, async (req, res) => {
     try {
       const { id } = req.params;
       const leaveTypeData = insertLeaveTypeSchema.partial().parse(req.body);
@@ -977,7 +980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/leave/types/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/leave/types/:id', isAuthenticated, requireHR, async (req, res) => {
     try {
       const { id } = req.params;
       await storage.deleteLeaveType(id);
@@ -985,6 +988,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting leave type:", error);
       res.status(500).json({ message: "Failed to delete leave type" });
+    }
+  });
+
+  // Leave policies
+  app.get('/api/leave/policies', isAuthenticated, async (req, res) => {
+    try {
+      const policies = await storage.getLeavePolicies();
+      res.json(policies);
+    } catch (error) {
+      console.error("Error fetching leave policies:", error);
+      res.status(500).json({ message: "Failed to fetch leave policies" });
+    }
+  });
+
+  app.post('/api/leave/policies', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      const policyData = insertLeavePolicySchema.parse(req.body);
+      const policy = await storage.upsertLeavePolicy(policyData);
+      res.status(201).json(policy);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid policy data", errors: error.errors });
+      }
+      console.error("Error upserting leave policy:", error);
+      res.status(500).json({ message: "Failed to save leave policy" });
+    }
+  });
+
+  app.delete('/api/leave/policies/:leaveTypeId', isAuthenticated, requireHR, async (req, res) => {
+    try {
+      await storage.deleteLeavePolicyByLeaveType(req.params.leaveTypeId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting leave policy:", error);
+      res.status(500).json({ message: "Failed to delete leave policy" });
+    }
+  });
+
+  app.post('/api/leave/rollover', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { prevYear, newYear } = req.body as { prevYear?: number; newYear?: number };
+      const currentYear = new Date().getFullYear();
+      const from = prevYear ?? currentYear - 1;
+      const to = newYear ?? currentYear;
+      const result = await storage.rolloverLeaveBalances(from, to);
+      res.json({ message: "Year-end rollover completed", ...result });
+    } catch (error) {
+      console.error("Error running leave rollover:", error);
+      res.status(500).json({ message: "Failed to run leave rollover" });
     }
   });
 
@@ -1007,13 +1059,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/leave/requests', isAuthenticated, async (req, res) => {
     try {
-      const leaveRequestData = insertLeaveRequestSchema.parse(req.body);
-      const leaveRequest = await storage.createLeaveRequest(leaveRequestData);
+      const user = req.user as any;
+      const employee = await storage.getEmployeeByUserId(user.id);
+      if (!employee) {
+        return res.status(403).json({ message: "Employee profile not found" });
+      }
+
+      const body = req.body as Record<string, unknown>;
+      const { leaveTypeId, startDate, endDate, reason } = body as {
+        leaveTypeId: string;
+        startDate: string;
+        endDate: string;
+        reason?: string;
+      };
+      if (!leaveTypeId || !startDate || !endDate) {
+        return res.status(400).json({ message: "leaveTypeId, startDate, and endDate are required" });
+      }
+
+      const leaveType = (await storage.getLeaveTypes()).find(l => l.id === leaveTypeId);
+      if (!leaveType) {
+        return res.status(404).json({ message: "Leave type not found" });
+      }
+
+      const policy = await storage.getLeavePolicyByLeaveType(leaveTypeId);
+      const balances = await storage.getLeaveBalances(employee.id, new Date(startDate).getFullYear());
+      const balance = balances.find(b => b.leaveTypeId === leaveTypeId);
+      const overlap = await storage.getLeaveRequestsOverlap(employee.id, startDate, endDate);
+
+      const validation = validateLeaveRequest({
+        employee,
+        leaveType,
+        policy,
+        balance,
+        overlap,
+        startDate,
+        endDate,
+      });
+      if (!validation.isValid) {
+        return res.status(400).json({
+          message: "Leave request validation failed",
+          days: validation.days,
+          violations: validation.violations,
+          available: Math.floor(validation.available),
+        });
+      }
+
+      const daysRequested = validation.days;
+      const leaveRequest = await storage.createLeaveRequest({
+        employeeId: employee.id,
+        leaveTypeId,
+        startDate,
+        endDate,
+        daysRequested,
+        reason: (reason as string) ?? null,
+      });
       res.status(201).json(leaveRequest);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid leave request data", errors: error.errors });
-      }
       console.error("Error creating leave request:", error);
       res.status(500).json({ message: "Failed to create leave request" });
     }
@@ -1062,55 +1163,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/leave/requests/:id/approve', isAuthenticated, requireManager, async (req, res) => {
     try {
       const { id } = req.params;
-      const { comments } = req.body;
+      const { comments } = req.body as { comments?: string };
       const user = req.user as any;
-      
+
+      const approver = await storage.getEmployeeByUserId(user.id);
+      if (!approver) {
+        return res.status(403).json({ message: "Employee profile not found" });
+      }
+
       const leaveRequest = await storage.getLeaveRequest(id);
       if (!leaveRequest) {
         return res.status(404).json({ message: "Leave request not found" });
       }
-      
-      // Check if already processed
       if (leaveRequest.status !== 'pending') {
         return res.status(400).json({ message: "Leave request has already been processed" });
       }
-      
-      const employee = await storage.getEmployeeByUserId(user.id);
-      if (!employee) {
-        return res.status(403).json({ message: "Employee profile not found" });
+      if (leaveRequest.employeeId === approver.id) {
+        return res.status(400).json({ message: "You cannot approve your own leave request" });
       }
-      
-      // Get current balance
-      const balances = await storage.getLeaveBalances(leaveRequest.employeeId, new Date().getFullYear());
+
+      const balances = await storage.getLeaveBalances(leaveRequest.employeeId, new Date(leaveRequest.startDate).getFullYear());
       const balance = balances.find(b => b.leaveTypeId === leaveRequest.leaveTypeId);
-      
       if (!balance) {
         return res.status(400).json({ message: "Leave balance not found for this employee" });
       }
-      
-      // Check if sufficient balance
       if (balance.remaining < leaveRequest.daysRequested) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Insufficient leave balance",
           remaining: balance.remaining,
-          requested: leaveRequest.daysRequested
+          requested: leaveRequest.daysRequested,
         });
       }
-      
-      // Update leave request and balance atomically
-      // Note: For true atomicity, implement database transactions
+
       const updatedRequest = await storage.updateLeaveRequest(id, {
         status: 'approved',
-        approvedBy: employee.id,
+        approvedBy: approver.id,
         approvalDate: new Date(),
         comments: comments || null,
       });
-      
       await storage.updateLeaveBalance(balance.id, {
-        used: (balance.used || 0) + leaveRequest.daysRequested,
+        used: (balance.used ?? 0) + leaveRequest.daysRequested,
         remaining: balance.remaining - leaveRequest.daysRequested,
       });
-      
+
       res.json(updatedRequest);
     } catch (error) {
       console.error("Error approving leave request:", error);
@@ -1121,21 +1216,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/leave/requests/:id/reject', isAuthenticated, requireManager, async (req, res) => {
     try {
       const { id } = req.params;
-      const { comments } = req.body;
+      const { comments } = req.body as { comments?: string };
       const user = req.user as any;
-      
-      const employee = await storage.getEmployeeByUserId(user.id);
-      if (!employee) {
+
+      const approver = await storage.getEmployeeByUserId(user.id);
+      if (!approver) {
         return res.status(403).json({ message: "Employee profile not found" });
       }
-      
+
+      const leaveRequest = await storage.getLeaveRequest(id);
+      if (!leaveRequest) {
+        return res.status(404).json({ message: "Leave request not found" });
+      }
+      if (leaveRequest.status !== 'pending') {
+        return res.status(400).json({ message: "Leave request has already been processed" });
+      }
+
       const updatedRequest = await storage.updateLeaveRequest(id, {
         status: 'rejected',
-        approvedBy: employee.id,
+        approvedBy: approver.id,
         approvalDate: new Date(),
         comments: comments || null,
       });
-      
+
       res.json(updatedRequest);
     } catch (error) {
       console.error("Error rejecting leave request:", error);

@@ -10,6 +10,7 @@ import {
   date,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from 'drizzle-orm';
 import { createInsertSchema } from "drizzle-zod";
@@ -259,10 +260,12 @@ export const onboardingDocuments = pgTable("onboarding_documents", {
 export const leaveTypes = pgTable("leave_types", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull(),
+  code: varchar("code"),
   description: text("description"),
   daysAllowed: integer("days_allowed").notNull(),
   carryForward: boolean("carry_forward").default(false),
   color: varchar("color").default('#3b82f6'),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -294,7 +297,29 @@ export const leaveBalances = pgTable("leave_balances", {
   remaining: integer("remaining").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("uq_leave_balances_emp_type_year").on(table.employeeId, table.leaveTypeId, table.year),
+]);
+
+// Leave Policies - configuration rules applied per leave type
+// accrualMethod: 'front-loaded' (full entitlement at year start) | 'pro-rated' (scaled by hire date) | 'monthly-accrual' (1/12th per month)
+export const leavePolicies = pgTable("leave_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leaveTypeId: varchar("leave_type_id").references(() => leaveTypes.id).notNull(),
+  accrualMethod: varchar("accrual_method").notNull().default('front-loaded'),
+  carryForward: boolean("carry_forward").default(false),
+  carryOverDays: integer("carry_over_days").default(0),
+  minimumServiceMonths: integer("minimum_service_months").default(0),
+  maxConsecutiveDays: integer("max_consecutive_days").default(0),
+  advanceNoticeDays: integer("advance_notice_days").default(0),
+  leaveYearStartMonth: integer("leave_year_start_month").default(1),
+  requiresDocumentation: boolean("requires_documentation").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("uq_leave_policies_type").on(table.leaveTypeId),
+]);
 
 // Payroll
 export const payrollRecords = pgTable("payroll_records", {
@@ -651,6 +676,13 @@ export const leaveBalanceRelations = relations(leaveBalances, ({ one }) => ({
   }),
 }));
 
+export const leavePolicyRelations = relations(leavePolicies, ({ one }) => ({
+  leaveType: one(leaveTypes, {
+    fields: [leavePolicies.leaveTypeId],
+    references: [leaveTypes.id],
+  }),
+}));
+
 export const payrollRecordRelations = relations(payrollRecords, ({ one }) => ({
   employee: one(employees, {
     fields: [payrollRecords.employeeId],
@@ -842,6 +874,12 @@ export const insertLeaveBalanceSchema = createInsertSchema(leaveBalances).omit({
   updatedAt: true,
 });
 
+export const insertLeavePolicySchema = createInsertSchema(leavePolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertPayrollRecordSchema = createInsertSchema(payrollRecords).omit({
   id: true,
   createdAt: true,
@@ -917,6 +955,8 @@ export type LeaveRequest = typeof leaveRequests.$inferSelect;
 export type InsertLeaveRequest = z.infer<typeof insertLeaveRequestSchema>;
 export type LeaveBalance = typeof leaveBalances.$inferSelect;
 export type InsertLeaveBalance = z.infer<typeof insertLeaveBalanceSchema>;
+export type LeavePolicy = typeof leavePolicies.$inferSelect;
+export type InsertLeavePolicy = z.infer<typeof insertLeavePolicySchema>;
 export type PayrollRecord = typeof payrollRecords.$inferSelect;
 export type InsertPayrollRecord = z.infer<typeof insertPayrollRecordSchema>;
 export type PerformanceReview = typeof performanceReviews.$inferSelect;

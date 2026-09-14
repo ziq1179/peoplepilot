@@ -16,6 +16,7 @@ import {
   leaveTypes,
   leaveRequests,
   leaveBalances,
+  leavePolicies,
   payrollRecords,
   performanceReviews,
   performanceGoals,
@@ -57,6 +58,8 @@ import {
   type InsertLeaveRequest,
   type LeaveBalance,
   type InsertLeaveBalance,
+  type LeavePolicy,
+  type InsertLeavePolicy,
   type PayrollRecord,
   type InsertPayrollRecord,
   type PerformanceReview,
@@ -73,8 +76,9 @@ import {
   type InsertInterview,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, like, or, count, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, like, or, count, sql, ne } from "drizzle-orm";
 import { calculatePayroll } from "./lib/payroll-calc";
+import { initialEntitlement } from "./lib/leave-policy";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -192,6 +196,14 @@ export interface IStorage {
   createLeaveBalance(balance: InsertLeaveBalance): Promise<LeaveBalance>;
   updateLeaveBalance(id: string, balance: Partial<InsertLeaveBalance>): Promise<LeaveBalance>;
   initializeLeaveBalancesForEmployee(employeeId: string, year: number): Promise<void>;
+
+  // Leave policy operations
+  getLeavePolicies(): Promise<LeavePolicy[]>;
+  getLeavePolicyByLeaveType(leaveTypeId: string): Promise<LeavePolicy | undefined>;
+  upsertLeavePolicy(policy: InsertLeavePolicy): Promise<LeavePolicy>;
+  deleteLeavePolicyByLeaveType(leaveTypeId: string): Promise<void>;
+  getLeaveRequestsOverlap(employeeId: string, startDate: string, endDate: string, excludeId?: string): Promise<LeaveRequest[]>;
+  rolloverLeaveBalances(prevYear: number, newYear: number): Promise<{ employeeCount: number; balanceCount: number }>;
   
   // Payroll operations
   getPayrollRecords(filters?: {
@@ -1018,6 +1030,9 @@ export class DatabaseStorage implements IStorage {
 
   async initializeLeaveBalancesForEmployee(employeeId: string, year: number): Promise<void> {
     const allLeaveTypes = await this.getLeaveTypes();
+    const policies = await this.getLeavePolicies();
+    const employee = await this.getEmployee(employeeId);
+    const startMonth = policies[0]?.leaveYearStartMonth ?? 1;
     
     for (const leaveType of allLeaveTypes) {
       const existingBalance = await db
@@ -1032,16 +1047,128 @@ export class DatabaseStorage implements IStorage {
         );
       
       if (existingBalance.length === 0) {
+        const policy = policies.find(p => p.leaveTypeId === leaveType.id);
+        const allocated = employee
+          ? initialEntitlement(policy, leaveType.daysAllowed, employee.hireDate, year, startMonth)
+          : leaveType.daysAllowed;
         await this.createLeaveBalance({
           employeeId,
           leaveTypeId: leaveType.id,
           year,
-          allocated: leaveType.daysAllowed,
+          allocated,
           used: 0,
-          remaining: leaveType.daysAllowed,
+          remaining: allocated,
         });
       }
     }
+  }
+
+  // Leave policy operations
+  async getLeavePolicies(): Promise<LeavePolicy[]> {
+    return await db.select().from(leavePolicies);
+  }
+
+  async getLeavePolicyByLeaveType(leaveTypeId: string): Promise<LeavePolicy | undefined> {
+    const [policy] = await db.select().from(leavePolicies).where(eq(leavePolicies.leaveTypeId, leaveTypeId));
+    return policy;
+  }
+
+  async upsertLeavePolicy(policyData: InsertLeavePolicy): Promise<LeavePolicy> {
+    const existing = await this.getLeavePolicyByLeaveType(policyData.leaveTypeId);
+    if (existing) {
+      const [updated] = await db.update(leavePolicies)
+        .set({ ...policyData, updatedAt: new Date() })
+        .where(eq(leavePolicies.leaveTypeId, policyData.leaveTypeId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(leavePolicies)
+      .values(policyData)
+      .returning();
+    return created;
+  }
+
+  async deleteLeavePolicyByLeaveType(leaveTypeId: string): Promise<void> {
+    await db.delete(leavePolicies).where(eq(leavePolicies.leaveTypeId, leaveTypeId));
+  }
+
+  async getLeaveRequestsOverlap(
+    employeeId: string,
+    startDate: string,
+    endDate: string,
+    excludeId?: string
+  ): Promise<LeaveRequest[]> {
+    const conditions = [
+      eq(leaveRequests.employeeId, employeeId),
+      ne(leaveRequests.status, 'rejected'),
+      lte(leaveRequests.startDate, endDate),
+      gte(leaveRequests.endDate, startDate),
+    ];
+    if (excludeId) {
+      conditions.push(ne(leaveRequests.id, excludeId));
+    }
+    return await db.select().from(leaveRequests).where(and(...conditions));
+  }
+
+  async rolloverLeaveBalances(
+    prevYear: number,
+    newYear: number
+  ): Promise<{ employeeCount: number; balanceCount: number }> {
+    return await db.transaction(async (tx) => {
+      const allEmployees = await tx.select().from(employees);
+      const allLeaveTypes = await tx.select().from(leaveTypes);
+      const allPolicies = await tx.select().from(leavePolicies);
+      let balanceCount = 0;
+      for (const emp of allEmployees) {
+        for (const lt of allLeaveTypes) {
+          const [prev] = await tx
+            .select()
+            .from(leaveBalances)
+            .where(
+              and(
+                eq(leaveBalances.employeeId, emp.id),
+                eq(leaveBalances.leaveTypeId, lt.id),
+                eq(leaveBalances.year, prevYear)
+              )
+            );
+          if (!prev) continue;
+          const policy = allPolicies.find(p => p.leaveTypeId === lt.id);
+          const carryEnabled = policy ? (policy.carryForward ?? false) : (lt.carryForward ?? false);
+          const cap = policy?.carryOverDays ?? 0;
+          const carried = carryEnabled && prev.remaining > 0 ? Math.min(prev.remaining, cap) : 0;
+          const startMonth = policy?.leaveYearStartMonth ?? 1;
+          const entitlement = initialEntitlement(policy, lt.daysAllowed, emp.hireDate, newYear, startMonth);
+          const allocated = entitlement + carried;
+          const [existing] = await tx
+            .select()
+            .from(leaveBalances)
+            .where(
+              and(
+                eq(leaveBalances.employeeId, emp.id),
+                eq(leaveBalances.leaveTypeId, lt.id),
+                eq(leaveBalances.year, newYear)
+              )
+            );
+          if (existing) {
+            await tx
+              .update(leaveBalances)
+              .set({ allocated, used: 0, remaining: allocated, updatedAt: new Date() })
+              .where(eq(leaveBalances.id, existing.id));
+          } else {
+            await tx.insert(leaveBalances).values({
+              employeeId: emp.id,
+              leaveTypeId: lt.id,
+              year: newYear,
+              allocated,
+              used: 0,
+              remaining: allocated,
+            });
+          }
+          balanceCount += 1;
+        }
+      }
+      return { employeeCount: allEmployees.length, balanceCount };
+    });
   }
 
   // Payroll operations

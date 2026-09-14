@@ -20,6 +20,7 @@ import {
   leaveTypes,
   leaveRequests,
   leaveBalances,
+  leavePolicies,
   attendanceRecords,
   timesheets,
   jobPostings,
@@ -27,6 +28,7 @@ import {
   performanceReviews,
   payrollRecords,
 } from "../shared/schema";
+import { STANDARD_LEAVE_TYPES } from "../server/lib/leave-policy";
 import { eq } from "drizzle-orm";
 
 const scryptAsync = promisify(scrypt);
@@ -156,18 +158,40 @@ async function main() {
   ]);
   console.log("  ✓ Teams: 2");
 
-  // 7. Leave Types
+  // 7. Leave Types + Policies
   const leaveTypeRows = await db
     .insert(leaveTypes)
-    .values([
-      { name: "Annual Leave", daysAllowed: 20, carryForward: true, color: "#3b82f6" },
-      { name: "Sick Leave", daysAllowed: 10, carryForward: false, color: "#ef4444" },
-      { name: "Personal Leave", daysAllowed: 5, carryForward: false, color: "#10b981" },
-    ])
+    .values(
+      STANDARD_LEAVE_TYPES.map((lt) => ({
+        name: lt.name,
+        code: lt.code,
+        description: lt.description,
+        daysAllowed: lt.daysAllowed,
+        carryForward: lt.policy.carryForward ?? false,
+        color: lt.color,
+        isActive: true,
+      }))
+    )
     .returning();
   const annualLeaveId = leaveTypeRows.find((l) => l.name === "Annual Leave")!.id;
-  const sickLeaveId = leaveTypeRows.find((l) => l.name === "Sick Leave")!.id;
-  console.log("  ✓ Leave Types: 3");
+  await db.insert(leavePolicies).values(
+    leaveTypeRows.map((lt) => {
+      const standard = STANDARD_LEAVE_TYPES.find((s) => s.name === lt.name)!;
+      return {
+        leaveTypeId: lt.id,
+        accrualMethod: standard.policy.accrualMethod ?? "front-loaded",
+        carryForward: standard.policy.carryForward ?? false,
+        carryOverDays: standard.policy.carryOverDays ?? 0,
+        minimumServiceMonths: standard.policy.minimumServiceMonths ?? 0,
+        maxConsecutiveDays: standard.policy.maxConsecutiveDays ?? 0,
+        advanceNoticeDays: standard.policy.advanceNoticeDays ?? 0,
+        leaveYearStartMonth: standard.policy.leaveYearStartMonth ?? 1,
+        requiresDocumentation: standard.policy.requiresDocumentation ?? false,
+        isActive: true,
+      };
+    })
+  );
+  console.log(`  ✓ Leave Types: ${leaveTypeRows.length} with standard policies`);
 
   // 8. Leave Balances (current year)
   const year = new Date().getFullYear();
@@ -183,7 +207,7 @@ async function main() {
       });
     }
   }
-  console.log("  ✓ Leave Balances: initialized for all employees");
+  console.log("  ✓ Leave Balances: initialized for all employees with standard entitlements");
 
   // 9. Leave Requests (sample)
   const futureDate = new Date();

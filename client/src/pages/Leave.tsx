@@ -83,37 +83,6 @@ export default function Leave() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return await apiRequest("PUT", `/api/leave/requests/${id}`, data);
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Leave request updated successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/leave/requests'] });
-    },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update leave request. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -137,30 +106,67 @@ export default function Leave() {
     return leaveType?.name || "Unknown";
   };
 
-  const calculateDays = (startDate: string, endDate: string) => {
-    if (!startDate || !endDate) return 0;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  const approveMutation = useMutation({
+    mutationFn: async ({ id, comments }: { id: string; comments?: string }) => {
+      return await apiRequest("PUT", `/api/leave/requests/${id}/approve`, { comments: comments || "" });
+    },
+    onSuccess: () => {
+      toast({ title: "Approved", description: "Leave request approved." });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave/requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave/balances'] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Unauthorized", description: "You are logged out. Logging in again...", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Error", description: "Failed to approve leave request.", variant: "destructive" });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, comments }: { id: string; comments?: string }) => {
+      return await apiRequest("PUT", `/api/leave/requests/${id}/reject`, { comments: comments || "" });
+    },
+    onSuccess: () => {
+      toast({ title: "Rejected", description: "Leave request rejected." });
+      queryClient.invalidateQueries({ queryKey: ['/api/leave/requests'] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({ title: "Unauthorized", description: "You are logged out. Logging in again...", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({ title: "Error", description: "Failed to reject leave request.", variant: "destructive" });
+    },
+  });
+
+  const calculateBusinessDays = (start: string, end: string) => {
+    if (!start || !end) return 0;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    let count = 0;
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const dow = current.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+      current.setDate(current.getDate() + 1);
+    }
+    return count;
   };
 
   const handleApprove = (id: string) => {
-    updateMutation.mutate({
-      id,
-      data: { status: 'approved', approvalDate: new Date().toISOString() }
-    });
+    approveMutation.mutate({ id });
   };
 
   const handleReject = (id: string) => {
-    updateMutation.mutate({
-      id,
-      data: { status: 'rejected', approvalDate: new Date().toISOString() }
-    });
+    rejectMutation.mutate({ id });
   };
 
   const onSubmit = (data: any) => {
-    const days = calculateDays(data.startDate, data.endDate);
+    const days = calculateBusinessDays(data.startDate, data.endDate);
     createMutation.mutate({ ...data, daysRequested: days });
   };
 
@@ -260,11 +266,13 @@ export default function Leave() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {leaveTypes?.map((type: LeaveType) => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.name}
-                            </SelectItem>
-                          ))}
+                          {leaveTypes
+                            ?.filter((type: LeaveType) => type.isActive !== false)
+                            .map((type: LeaveType) => (
+                              <SelectItem key={type.id} value={type.id}>
+                                {type.name}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
