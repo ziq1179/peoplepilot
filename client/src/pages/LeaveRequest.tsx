@@ -42,8 +42,10 @@ export default function LeaveRequest() {
     queryKey: ["/api/leave/types"],
   });
 
+  const currentYear = new Date().getFullYear();
+
   const { data: balances = [] } = useQuery<LeaveBalance[]>({
-    queryKey: ["/api/leave/balances", employee?.id],
+    queryKey: ["/api/leave/balances", employee?.id, { year: currentYear }],
     enabled: !!employee?.id,
   });
 
@@ -274,7 +276,7 @@ export default function LeaveRequest() {
               <CardTitle className="text-lg">Leave Balance</CardTitle>
               <CardDescription>
                 {selectedLeaveType
-                  ? "Balance for selected leave type"
+                  ? `${currentYear} balance for selected type`
                   : "Select a leave type to view balance"}
               </CardDescription>
             </CardHeader>
@@ -308,8 +310,8 @@ export default function LeaveRequest() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Your Leave Balances</CardTitle>
-              <CardDescription>All available leave balances</CardDescription>
+              <CardTitle className="text-lg">{currentYear} Leave Balances</CardTitle>
+              <CardDescription>Available leave balances for this year</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
