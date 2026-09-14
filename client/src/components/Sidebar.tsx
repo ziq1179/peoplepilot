@@ -225,16 +225,16 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
           />
 
           {/* Leave Management */}
-          {(isManager || isHR) && (
-            <NavSection
-              title="Leave Management"
-              items={leaveNavigation}
-              defaultOpen={false}
-              location={location}
-              isMobile={isMobile}
-              onClose={onClose}
-            />
-          )}
+          <NavSection
+            title="Leave Management"
+            items={leaveNavigation.filter(item =>
+              item.href === '/leave/request' || isManager || isHR
+            )}
+            defaultOpen={false}
+            location={location}
+            isMobile={isMobile}
+            onClose={onClose}
+          />
 
           {/* Financial */}
           {isHR && (
